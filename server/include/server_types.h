@@ -13,11 +13,11 @@ enum server_log_lvl {
 
 struct server_conf {
 	long int port;
-	const char *user;
-	const char *group;
+	long int thread_cnt;
 
 	enum server_log_lvl log_lvl;
 	const char *mail_dir;
+	const char *queue_dir;
 };
 
 extern struct server_conf conf;

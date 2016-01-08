@@ -1,9 +1,17 @@
 #include "server_types.h"
 
+#include <errno.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
 #define SERVER_USAGE "Usage: <server> <config_file>"
+#define THREAD_CNT_DEFAULT 3
 
 static config_t server_conf;
 
@@ -21,9 +29,16 @@ static void server_deinit(void)
 	config_destroy(&server_conf);
 }
 
-static int server_check_config(void)
+static int server_parse_config(void)
 {
+	struct stat mail_dir_st;
+	long int log_lvl;
+	struct stat queue_dir_st;
+	const char *user_group;
+	struct passwd *pwd;
+	struct group *gr;
 	config_setting_t *system = config_lookup(&server_conf, "system");
+
 	if (system == NULL) {
 		slog_e("%s", "not `system' parametr");
 		return -1;
@@ -39,7 +54,9 @@ static int server_check_config(void)
 		return -1;
 	}
 
-	long int log_lvl;
+	if (config_lookup_int(&server_conf, "thread_cnt", &conf.thread_cnt) != CONFIG_TRUE)
+		conf.thread_cnt = THREAD_CNT_DEFAULT;
+
 	if (config_setting_lookup_int(system, "log_level", &log_lvl) != CONFIG_TRUE ||
 	    log_lvl < 0 || log_lvl >= SERVER_LOG_LVL_LAST) {
 		slog_e("%s", "incorrect `log_level' parametr in config");
@@ -47,14 +64,61 @@ static int server_check_config(void)
 	}
 	conf.log_lvl = log_lvl;
 
-	//TODO: user, group
-	//TODO: check access and exist
 	if (config_lookup_string(&server_conf, "mail_dir", &conf.mail_dir) != CONFIG_TRUE) {
 		slog_e("%s", "incorrect `mail_dir'");
 		return -1;
 	}
 
-	slog_d("Server port is %ld", conf.port);
+	if (stat(conf.mail_dir, &mail_dir_st) != 0) {
+		slog_e("incorrect mail dir: %s", strerror(errno));
+		return -1;
+	}
+
+	if (config_lookup_string(&server_conf, "queue_dir", &conf.queue_dir) != CONFIG_TRUE) {
+		slog_e("%s", "incorrect `queue_dir'");
+		return -1;
+	}
+
+	if (stat(conf.queue_dir, &queue_dir_st) != 0) {
+		slog_e("incorrect queue dir: %s", strerror(errno));
+		return -1;
+	}
+
+	if (config_setting_lookup_string(system, "user", &user_group) != CONFIG_TRUE) {
+		slog_e("%s", "No `user' parametr in config");
+		return -1;
+	}
+
+	if ((pwd = getpwnam(user_group)) == NULL) {
+		slog_e("user %s doesn't exist or error occured", user_group);
+		return -1;
+	}
+
+	if (config_setting_lookup_string(system, "group", &user_group) != CONFIG_TRUE) {
+		slog_e("%s", "No `group' parametr in config");
+		return -1;
+	}
+
+	if ((gr = getgrnam(user_group)) == NULL) {
+		slog_e("group %s doesn't exist or error occured", user_group);
+		return -1;
+	}
+
+	if (setgid(gr->gr_gid) != 0 ||
+	    setuid(pwd->pw_uid) != 0) {
+		slog_e("unable to change to user and group from config: %s", strerror(errno));
+		return -1;
+	}
+
+	if (mail_dir_st.st_uid != pwd->pw_uid || mail_dir_st.st_gid != gr->gr_gid) {
+		slog_e("access denied to %s", conf.mail_dir);
+		return -1;
+	}
+
+	if (queue_dir_st.st_uid != pwd->pw_uid || queue_dir_st.st_gid != gr->gr_gid) {
+		slog_e("access denied to %s", conf.queue_dir);
+		return -1;
+	}
 
 	return 0;
 }
@@ -77,12 +141,12 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	if (server_check_config() != 0) {
+	if (server_parse_config() != 0) {
 		slog_e("%s", "Unable to start server: incorrect config file");
 		return -1;
 	}
 
-	slog_i("config `%s' is read", argv[1]);
+	slog_i("config `%s' is correct. Ready to start server", argv[1]);
 
 	return 0;
 }

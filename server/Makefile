@@ -1,23 +1,24 @@
 CC = gcc
-CFLAGS = -Wall -Werror -std=c99 -ggdb3
+CFLAGS = -Wall -Werror -std=gnu99 -ggdb3
+LDFLAGS=-pthread  -lrt
 
 INC = include
 SRC_DIR = src
 OBJ_DIR = obj
-LIB = -lconfig
+LIB = -lconfig -lpthread
 TARGET = smtp_server
 
-SRC = server.c conn.c session.c
+SRC = server.c conn.c session.c thpool.c server_worker.c
 OBJECTS = $(patsubst %.o,$(OBJ_DIR)/%.o, $(SRC:.c=.o))
 
 all: server
 
 server: $(OBJECTS)
-	$(CC) -o $(TARGET) $(OBJECTS) $(LIB)
+	$(CC) $(LDFLAGS) -o $(TARGET) $(OBJECTS) $(LIB)
 
 $(OBJECTS): $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 	mkdir -p $(OBJ_DIR)
-	$(CC) -c $< $(CFLAGS) -I $(INC) $(LIB) -o $@
+	$(CC) -lrt -c -o $@ $< $(CFLAGS) -I $(INC) $(LIB)
 
 clean:
 	rm -f $(OBJECTS) $(TARGET)

@@ -1,6 +1,7 @@
 #include "conn.h"
 #include "server_types.h"
 
+#include <assert.h>
 #include <grp.h>
 #include <pwd.h>
 #include <sys/stat.h>
@@ -24,6 +25,52 @@ __attribute__((destructor))
 static void server_deinit(void)
 {
 	config_destroy(&server_conf);
+}
+
+void buf_init(struct buf *buf, uint32_t prealloc)
+{
+	static uint32_t low_limit = 256;
+	prealloc = prealloc == 0 ? prealloc :
+		   prealloc > low_limit ? prealloc : low_limit;
+
+	buf->data = prealloc == 0 ? NULL : malloc(prealloc);
+	buf->len = 0;
+	buf->size = prealloc;
+}
+
+void buf_reset(struct buf *buf)
+{
+	buf->len = 0;
+}
+
+void buf_free(struct buf *buf)
+{
+	if (buf->data != NULL)
+		free(buf->data);
+
+	buf->len = buf->size = 0;
+}
+
+void buf_append(struct buf *buf, const char *data, uint32_t len)
+{
+	static int growth = 2;
+	if ((buf->size - buf->len) < len) {
+		uint32_t need_mem = len - buf->size + buf->len;
+
+		if (need_mem < buf->size) {
+			need_mem = buf->size * growth;
+		}
+
+		buf->data = realloc(buf->data, need_mem);
+		if (buf->data == NULL) {
+			slog_e("%s", "no mem");
+			abort();
+		}
+		buf->size = need_mem;
+	}
+
+	memcpy(buf->data + buf->len, data, len);
+	buf->len += len;
 }
 
 static int server_parse_config(void)

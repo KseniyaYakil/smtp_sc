@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 enum server_log_lvl {
 	SERVER_LOG_LVL_ERR = 0,
@@ -25,7 +27,21 @@ struct server_conf {
 	const char *queue_dir;
 };
 
+struct buf {
+	char *data;
+	uint32_t len; // used
+	uint32_t size; //alloced size
+};
+
 extern struct server_conf conf;
+
+//TODO: add to common
+void buf_init(struct buf *buf, uint32_t prealloc);
+void buf_reset(struct buf *buf);
+void buf_append(struct buf *buf, const char *data, uint32_t len);
+void buf_free(struct buf *buf);
+
+#define MAX_CLIENTS	1024
 
 #define slog_log(lvl, format_, ...) {		\
 	if (lvl <= conf.log_lvl) {		\

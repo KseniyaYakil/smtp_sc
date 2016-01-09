@@ -1,29 +1,26 @@
 CC = gcc
-CFLAGS = -Wall -Werror -std=c99 -ggdb3
+CFLAGS = -Wall -Werror -std=gnu99 -ggdb3
+LDFLAGS=-pthread  -lrt
 
 INC = include
 SRC_DIR = src
 OBJ_DIR = obj
-SRC = server.c
-OBJ = $(SRC:.c=.o)
-LIB = -lconfig
+LIB = -lconfig -lpthread
 TARGET = smtp_server
 
-SRC_ALL = $(patsubst %.c,$(SRC_DIR)/%.c, $(SRC))
-OBJ_ALL = $(patsubst %.o,$(OBJ_DIR)/%.o, $(OBJ))
+SRC = server.c conn.c session.c thpool.c server_worker.c
+OBJECTS = $(patsubst %.o,$(OBJ_DIR)/%.o, $(SRC:.c=.o))
 
 all: server
 
-server: obj_create server_build
+server: $(OBJECTS)
+	$(CC) $(LDFLAGS) -o $(TARGET) $(OBJECTS) $(LIB)
 
-obj_create:
+$(OBJECTS): $(OBJ_DIR)/%.o : $(SRC_DIR)/%.c
 	mkdir -p $(OBJ_DIR)
-	$(CC) -c -o $(OBJ_ALL) $(SRC_ALL) $(CFLAGS) -I $(INC) $(LIB)
-
-server_build:
-	$(CC) -o $(TARGET) $(OBJ_ALL)
+	$(CC) -lrt -c -o $@ $< $(CFLAGS) -I $(INC) $(LIB)
 
 clean:
-	rm -f $(OBJ_ALL) $(TARGET)
+	rm -f $(OBJECTS) $(TARGET)
 
 .PHONY: server clean

@@ -1,7 +1,12 @@
+
 #ifndef _SERVER_TYPES_H_
 #define _SERVER_TYPES_H_
 
+#include <errno.h>
 #include <libconfig.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 enum server_log_lvl {
 	SERVER_LOG_LVL_ERR = 0,

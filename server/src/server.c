@@ -1,11 +1,8 @@
+#include "conn.h"
 #include "server_types.h"
 
-#include <errno.h>
 #include <grp.h>
 #include <pwd.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
@@ -147,6 +144,8 @@ int main(int argc, char *argv[])
 	}
 
 	slog_i("config `%s' is correct. Ready to start server", argv[1]);
+
+	run_server();
 
 	return 0;
 }

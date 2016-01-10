@@ -83,6 +83,26 @@ void buf_append(struct buf *buf, const char *data, uint32_t len)
 	buf->len += len;
 }
 
+int buf_copy(struct buf *buf, char **data_p, uint32_t *len)
+{
+	*data_p = NULL;
+	*len = 0;
+
+	if (buf_get_len(buf) == 0)
+		return 0;
+
+	char *data = strndup(buf_get_data(buf), buf_get_len(buf));
+	if (data == NULL) {
+		slog_e("%s", "no mem");
+		abort();
+	}
+
+	*data_p = data;
+	*len = buf_get_len(buf);
+
+	return 0;
+}
+
 static int server_parse_config(void)
 {
 	struct stat mail_dir_st;

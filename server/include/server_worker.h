@@ -6,7 +6,7 @@
 #include "conn.h"
 
 void server_worker_start(struct conn *conn);
-void server_worker_process(struct conn_msg *msg);
+void server_worker_process(struct conn *conn);
 void server_worker_close(struct conn *conn);
 
 #endif // _SERVER_WORKER_H_

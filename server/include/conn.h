@@ -15,15 +15,16 @@ struct conn {
 	uint32_t id;
 	uint32_t fd_index;
 	enum conn_status status;
-};
 
-struct conn_msg {
-	struct buf buf;
-	struct conn *conn;
+	struct buf read; // read data from client
+	struct buf write; // write data to client
 };
 
 int run_server();
-void conn_msg_free(struct conn_msg *msg);
+int conn_append_to_write_buf(struct conn *conn, const char *data, uint32_t len);
+int conn_read_buf_get_and_flush(struct conn *conn, char **data_p, uint32_t *len);
+struct buf *conn_get_read_buf(struct conn *conn);
+struct buf *conn_get_write_buf(struct conn *conn);
 void conn_close(struct conn *conn);
 
 #endif // _SERVER_CONN_H_

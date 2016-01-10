@@ -27,11 +27,23 @@ void server_worker_start(struct conn *conn)
 	}
 }
 
-void server_worker_process(struct conn_msg *msg)
+void server_worker_process(struct conn *conn)
 {
-	slog_d("worker: data from client %.*s", buf_get_len(&msg->buf), buf_get_data(&msg->buf));
+	struct buf *buf = conn_get_read_buf(conn);
 
-	conn_msg_free(msg);
+	slog_d("worker: data from client %.*s", buf_get_len(buf), buf_get_data(buf));
+
+	char *data;
+	uint32_t len;
+	conn_read_buf_get_and_flush(conn, &data, &len);
+
+	//TODO: add send here
+	char tmp_str[] = "hello from server";
+
+	buf_reset(&conn->write);
+	conn_append_to_write_buf(conn, tmp_str, sizeof(tmp_str));
+
+	free(data);
 }
 
 void server_worker_close(struct conn *conn)

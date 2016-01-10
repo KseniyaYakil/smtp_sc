@@ -41,6 +41,7 @@ void buf_reset(struct buf *buf);
 void buf_append(struct buf *buf, const char *data, uint32_t len);
 char *buf_get_data(struct buf *buf);
 uint32_t buf_get_len(struct buf *buf);
+int buf_copy(struct buf *buf, char **data_p, uint32_t *len);
 void buf_free(struct buf *buf);
 
 #define MAX_CLIENTS	1024

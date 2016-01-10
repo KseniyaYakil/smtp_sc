@@ -27,18 +27,31 @@ static threadpool thpool;
 // TODO: make extendable
 #define MAX_CONN_CNT	MAX_CLIENTS * 2
 static struct conn *conns[MAX_CONN_CNT];
+static struct pollfd fds[MAX_CLIENTS];
+
+struct conn *conn_new(uint32_t fd_index)
+{
+	static uint32_t id = 0;
+	const uint32_t prealloc = 128;
+
+	struct conn *conn = (struct conn *)malloc(sizeof(struct conn));
+	conn->id = id++;
+	conn->status = CON_STATUS_ENABLED;
+	conn->fd_index = fd_index;
+
+	buf_init(&conn->read, prealloc);
+	buf_init(&conn->write, prealloc);
+
+	return conn;
+}
 
 struct conn *conn_get_new(uint32_t fd_index)
 {
-	static uint32_t id = 0;
 	struct conn *conn = NULL;
 	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
 		if (conns[i] == NULL) {
-			conn = (struct conn *)malloc(sizeof(struct conn));
-			conn->id = id++;
-			conn->status = CON_STATUS_ENABLED;
-			conn->fd_index = fd_index;
-
+			conn = conn_new(fd_index);
+			assert(conn != NULL);
 			conns[i] = conn;
 			slog_d("create new conn %"PRIu32, conn->id);
 			break;
@@ -67,6 +80,9 @@ void conn_close(struct conn *conn)
 static void conn_free(struct conn *conn)
 {
 	slog_d("conn free %"PRIu32" was called", conn->id);
+
+	buf_free(&conn->read);
+	buf_free(&conn->write);
 	free(conn);
 }
 
@@ -106,37 +122,57 @@ struct conn *conn_get_enabled(uint32_t index)
 }
 
 // XXX: server worker MUST free buf
-struct conn_msg *conn_form_msg(uint32_t index, const char *data, uint32_t len)
+struct conn *conn_append_to_read_buf(uint32_t index, const char *data, uint32_t len)
 {
 	struct conn *conn = conn_get_enabled(index);
 	if (conn == NULL)
 		return NULL;
 
-	struct conn_msg *msg = (struct conn_msg *)malloc(sizeof(struct conn_msg));
-	if (msg == NULL) {
-		slog_e("%s", "no mem");
-		abort();
-	}
+	buf_append(&(conn->read), data, len);
 
-	buf_init(&(msg->buf), len);
-	buf_append(&(msg->buf), data, len);
-	msg->conn = conn;
-
-	return msg;
+	return conn;
 }
 
-void conn_msg_free(struct conn_msg *msg)
+int conn_append_to_write_buf(struct conn *conn, const char *data, uint32_t len)
 {
-	if (msg == NULL)
-		return;
+	assert(conn != NULL && conn->status == CON_STATUS_ENABLED);
+	buf_append(&(conn->write), data, len);
 
-	buf_free(&msg->buf);
-	free(msg);
+	fds[conn->fd_index].events |= POLLOUT;
+
+	return 0;
+}
+
+// XXX: caller MUST free *data_p mem
+int conn_read_buf_get_and_flush(struct conn *conn, char **data_p, uint32_t *len)
+{
+	buf_copy(&conn->read, data_p, len);
+	buf_reset(&conn->read);
+
+	return 0;
+}
+
+// XXX: caller MUST free *data_p mem
+int conn_write_buf_get_and_flush(struct conn *conn, char **data_p, uint32_t *len)
+{
+	buf_copy(&conn->write, data_p, len);
+	buf_reset(&conn->write);
+
+	return 0;
+}
+
+struct buf *conn_get_read_buf(struct conn *conn)
+{
+	return &conn->read;
+}
+
+struct buf *conn_get_write_buf(struct conn *conn)
+{
+	return &conn->write;
 }
 
 static int run_server_loop(int listen_fd)
 {
-	struct pollfd fds[MAX_CLIENTS];
 	char buf[MAX_BUF_LEN];
 
 	memset(fds, 0, sizeof(fds));
@@ -200,7 +236,7 @@ static int run_server_loop(int listen_fd)
 			}
 
 			if (fds[i].revents & POLLHUP) {
-				slog_d("client has gone (%d)", fds[i].fd);
+				slog_i("client has gone (%d)", fds[i].fd);
 
 				struct conn *conn = conn_get_enabled(i);
 				if (conn != NULL);
@@ -216,7 +252,7 @@ static int run_server_loop(int listen_fd)
 			}
 
 			if (fds[i].revents & POLLIN) {
-				slog_i("read data from %d", fds[i].fd);
+				slog_d("read data from %d events %"PRIu32, fds[i].fd, fds[i].events);
 				int rc;
 				bool close_conn = false;
 				do {
@@ -237,25 +273,14 @@ static int run_server_loop(int listen_fd)
 
 					slog_d("  %d bytes received\n", rc);
 
-					struct conn_msg *msg = conn_form_msg(i, buf, rc);
-					if (msg != NULL) {
-						thpool_add_work(thpool, (void*)server_worker_process, msg);
+					struct conn *conn = conn_append_to_read_buf(i, buf, rc);
+					if (conn != NULL) {
+						thpool_add_work(thpool, (void*)server_worker_process, conn);
 					} else {
-						slog_e("%s", "unable to form msg from client: conn closing/doesn't exist");
+						slog_e("%s", "unable to store data from client: conn closing/doesn't exist");
 						close_conn = true;
 					}
-
-					/*
-					rc = send(fds[i].fd, buf, rc, 0);
-					if (rc < 0) {
-						slog_e("%s", "send() failed");
-
-						thpool_add_work(thpool, (void*)server_worker_close, cl);
-						close_conn = true;
-						break;
-					}
-					*/
-				} while (true);
+				} while (false);
 
 				if (close_conn == true) {
 					struct conn *conn = conn_get_enabled(i);
@@ -269,7 +294,24 @@ static int run_server_loop(int listen_fd)
 			}
 
 			if (fds[i].revents & POLLOUT) {
-				slog_i("write data from %d", fds[i].fd);
+				struct conn *conn = conn_get_enabled(i);
+				if (conn == NULL) {
+					slog_e("%s", "POLLOUT event but no conn");
+					continue;
+				}
+
+				slog_d("write data from %d: %.*s", fds[i].fd, conn->write.len, conn->write.data);
+
+				int rc = send(fds[i].fd, conn->write.data, conn->write.len, 0);
+				buf_reset(&conn->write);
+
+				if (rc < 0) {
+					slog_e("%s", "send() failed");
+
+					thpool_add_work(thpool, (void*)server_worker_close, conn);
+				}
+
+				fds[i].events &= ~POLLOUT;
 			}
 		}
 	}

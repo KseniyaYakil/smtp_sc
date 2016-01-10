@@ -25,7 +25,6 @@ static int timeout_msec = -1;
 static char ip_def[32] = "127.0.0.1";
 static threadpool thpool;
 // TODO: make extendable
-#define MAX_CONN_CNT	MAX_CLIENTS * 2
 static struct conn *conns[MAX_CONN_CNT];
 static struct pollfd fds[MAX_CLIENTS];
 
@@ -159,6 +158,11 @@ int conn_write_buf_get_and_flush(struct conn *conn, char **data_p, uint32_t *len
 	buf_reset(&conn->write);
 
 	return 0;
+}
+
+void conn_read_buf_flush(struct conn *conn)
+{
+	buf_reset(&conn->read);
 }
 
 struct buf *conn_get_read_buf(struct conn *conn)

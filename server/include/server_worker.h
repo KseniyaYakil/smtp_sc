@@ -1,9 +1,16 @@
 #ifndef _SERVER_WORKER_H_
 #define _SERVER_WORKER_H_
 
-#include "session.h"
-#include "server_types.h"
 #include "conn.h"
+#include "server_types.h"
+
+#include <inttypes.h>
+#include <stdint.h>
+
+struct smtp_data {
+	void *conn;
+	uint32_t id;
+};
 
 void server_worker_start(struct conn *conn);
 void server_worker_process(struct conn *conn);

@@ -12,6 +12,7 @@ enum conn_status {
 };
 
 struct conn {
+	uint32_t id;
 	uint32_t fd_index;
 	enum conn_status status;
 };
@@ -22,6 +23,7 @@ struct conn_msg {
 };
 
 int run_server();
+void conn_msg_free(struct conn_msg *msg);
 void conn_close(struct conn *conn);
 
 #endif // _SERVER_CONN_H_

@@ -39,6 +39,8 @@ extern struct server_conf conf;
 void buf_init(struct buf *buf, uint32_t prealloc);
 void buf_reset(struct buf *buf);
 void buf_append(struct buf *buf, const char *data, uint32_t len);
+char *buf_get_data(struct buf *buf);
+uint32_t buf_get_len(struct buf *buf);
 void buf_free(struct buf *buf);
 
 #define MAX_CLIENTS	1024

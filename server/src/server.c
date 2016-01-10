@@ -43,6 +43,16 @@ void buf_reset(struct buf *buf)
 	buf->len = 0;
 }
 
+char *buf_get_data(struct buf *buf)
+{
+	return buf->data;
+}
+
+uint32_t buf_get_len(struct buf *buf)
+{
+	return buf->len;
+}
+
 void buf_free(struct buf *buf)
 {
 	if (buf->data != NULL)

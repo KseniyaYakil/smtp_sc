@@ -25,18 +25,22 @@ static int timeout_msec = -1;
 static char ip_def[32] = "127.0.0.1";
 static threadpool thpool;
 // TODO: make extendable
-static struct conn *conns[MAX_CLIENTS * 2];
+#define MAX_CONN_CNT	MAX_CLIENTS * 2
+static struct conn *conns[MAX_CONN_CNT];
 
 struct conn *conn_get_new(uint32_t fd_index)
 {
+	static uint32_t id = 0;
 	struct conn *conn = NULL;
-	for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
+	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
 		if (conns[i] == NULL) {
 			conn = (struct conn *)malloc(sizeof(struct conn));
-
-			conns[i] = conn;
+			conn->id = id++;
 			conn->status = CON_STATUS_ENABLED;
 			conn->fd_index = fd_index;
+
+			conns[i] = conn;
+			slog_d("create new conn %"PRIu32, conn->id);
 			break;
 		}
 	}
@@ -44,30 +48,52 @@ struct conn *conn_get_new(uint32_t fd_index)
 	return conn;
 }
 
+// XXX: calling function marks conn for closing
+// MUST call only once for each conn
 void conn_close(struct conn *conn)
 {
-	bool found = false;
 	assert(conn != NULL);
 
-	for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
-		if (conns[i] == conn) {
-			conns[i] = NULL;
-			found = true;
-			break;
-		}
+	slog_d("conn close %"PRIu32" was called", conn->id);
+	if (conn->status == CON_STATUS_ENABLED) {
+		conn->status = CON_STATUS_CLOSING;
+		return;
 	}
 
-	assert(found == true);
-	free(conn);
+	slog_e("%s", "conn_close was called twice");
+	abort();
+}
 
-	//TODO: mark fd[fd_index] as freed ? when err occured in server_worker
-	//and need to close conn
+static void conn_free(struct conn *conn)
+{
+	slog_d("conn free %"PRIu32" was called", conn->id);
+	free(conn);
+}
+
+void conn_close_all(struct pollfd *fds, uint32_t cnt)
+{
+	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
+		if (conns[i] != NULL &&
+		    conns[i]->status == CON_STATUS_CLOSING) {
+			uint32_t fd_index = conns[i]->fd_index;
+			close(fds[fd_index].fd);
+
+			fds[fd_index] = (struct pollfd) {
+				.fd = 0,
+				.events = POLLIN,
+				.revents = 0
+			};
+
+			conn_free(conns[i]);
+			conns[i] = NULL;
+		}
+	}
 }
 
 struct conn *conn_get_enabled(uint32_t index)
 {
 	struct conn *conn = NULL;
-	for (uint32_t i = 0; i < MAX_CLIENTS; i++) {
+	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
 		if (conns[i] != NULL &&
 		    conns[i]->fd_index == index &&
 		    conns[i]->status == CON_STATUS_ENABLED) {
@@ -79,16 +105,33 @@ struct conn *conn_get_enabled(uint32_t index)
 	return conn;
 }
 
+// XXX: server worker MUST free buf
 struct conn_msg *conn_form_msg(uint32_t index, const char *data, uint32_t len)
 {
+	struct conn *conn = conn_get_enabled(index);
+	if (conn == NULL)
+		return NULL;
+
 	struct conn_msg *msg = (struct conn_msg *)malloc(sizeof(struct conn_msg));
+	if (msg == NULL) {
+		slog_e("%s", "no mem");
+		abort();
+	}
 
 	buf_init(&(msg->buf), len);
-	// TODO: process err (when unable to alloc mem)
 	buf_append(&(msg->buf), data, len);
-	msg->conn = conn_get_enabled(index);
+	msg->conn = conn;
 
 	return msg;
+}
+
+void conn_msg_free(struct conn_msg *msg)
+{
+	if (msg == NULL)
+		return;
+
+	buf_free(&msg->buf);
+	free(msg);
 }
 
 static int run_server_loop(int listen_fd)
@@ -104,6 +147,9 @@ static int run_server_loop(int listen_fd)
 	bool end_server = false;
 
 	while (end_server == false) {
+		// free closed conn
+		conn_close_all(fds, MAX_CLIENTS);
+
 		int nevents = poll(fds, MAX_FD_CNT, timeout_msec);
 		if (nevents < 0) {
 			slog_e("err in poll %s", strerror(errno));
@@ -155,17 +201,12 @@ static int run_server_loop(int listen_fd)
 
 			if (fds[i].revents & POLLHUP) {
 				slog_d("client has gone (%d)", fds[i].fd);
-				//TODO: need to close prev socket?
+
 				struct conn *conn = conn_get_enabled(i);
-				assert(conn != NULL);
-				thpool_add_work(thpool, (void*)server_worker_close, conn);
+				if (conn != NULL);
+					thpool_add_work(thpool, (void*)server_worker_close, conn);
 
-				fds[i] = (struct pollfd) {
-					.fd = 0,
-					.events = POLLIN,
-					.revents = 0
-				};
-
+				fds[i].events = 0;
 				continue;
 			}
 
@@ -177,7 +218,7 @@ static int run_server_loop(int listen_fd)
 			if (fds[i].revents & POLLIN) {
 				slog_i("read data from %d", fds[i].fd);
 				int rc;
-				bool close_conn;
+				bool close_conn = false;
 				do {
 					rc = recv(fds[i].fd, buf, sizeof(buf), 0);
 					if (rc < 0) {
@@ -197,12 +238,12 @@ static int run_server_loop(int listen_fd)
 					slog_d("  %d bytes received\n", rc);
 
 					struct conn_msg *msg = conn_form_msg(i, buf, rc);
-					if (msg == NULL) {
-						slog_e("%s", "unable to form conn msg from client");
-						abort();
+					if (msg != NULL) {
+						thpool_add_work(thpool, (void*)server_worker_process, msg);
+					} else {
+						slog_e("%s", "unable to form msg from client: conn closing/doesn't exist");
+						close_conn = true;
 					}
-
-					thpool_add_work(thpool, (void*)server_worker_process, msg);
 
 					/*
 					rc = send(fds[i].fd, buf, rc, 0);
@@ -218,11 +259,10 @@ static int run_server_loop(int listen_fd)
 
 				if (close_conn == true) {
 					struct conn *conn = conn_get_enabled(i);
-					assert(conn != NULL);
-					thpool_add_work(thpool, (void*)server_worker_close, conn);
+					if (conn != NULL)
+						thpool_add_work(thpool, (void*)server_worker_close, conn);
 
-					close(fds[i].fd);
-					memset(&fds[i], 0, sizeof(fds[i]));
+					fds[i].events = 0;
 				}
 
 				continue;
@@ -232,7 +272,6 @@ static int run_server_loop(int listen_fd)
 				slog_i("write data from %d", fds[i].fd);
 			}
 		}
-
 	}
 
 	return 0;

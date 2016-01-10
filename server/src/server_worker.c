@@ -29,7 +29,9 @@ void server_worker_start(struct conn *conn)
 
 void server_worker_process(struct conn_msg *msg)
 {
-	slog_d("worker: data from client %.*s", msg->buf.len, msg->buf.data);
+	slog_d("worker: data from client %.*s", buf_get_len(&msg->buf), buf_get_data(&msg->buf));
+
+	conn_msg_free(msg);
 }
 
 void server_worker_close(struct conn *conn)

@@ -5,10 +5,11 @@ LDFLAGS=-pthread  -lrt
 INC = include
 SRC_DIR = src
 OBJ_DIR = obj
-LIB = -lconfig -lpthread
+LIB = -lconfig -lpthread -lpcre
 TARGET = smtp_server
 
-SRC = server.c conn.c thpool.c server_worker.c
+SRC = server.c conn.c thpool.c worker.c \
+      buf.c smtp-fsm.c smtp_proto.c
 OBJECTS = $(patsubst %.o,$(OBJ_DIR)/%.o, $(SRC:.c=.o))
 
 all: server

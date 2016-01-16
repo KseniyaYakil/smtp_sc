@@ -36,10 +36,11 @@ transition = { tst = rcpt_middle; tev = RCPT, DATA; next = parse_cmd;};
 transition = { tst = rcpt_middle; tev = HELO, EHLO, MAIL, DATA_RCV; next = seq_err;};
 
 transition = { tst = data_wait; tev = DATA_RCV; next = parse_data;};
+transition = { tst = data_wait; tev = ERR; next = st_err;};
 transition = { tst = data_wait; tev = HELO, EHLO, MAIL, RCPT, DATA, DATA_END; next = seq_err;};
 transition = { tst = parse_data; tev = DATA_RCV; next = data_wait;};
 transition = { tst = parse_data; tev = DATA_END; next = store_mail;};
 transition = { tst = parse_data; tev = HELO, EHLO, MAIL, RCPT, DATA; next = seq_err;};
 
 transition = { tst = store_mail; tev = OK; next = init;};
-transition = { tst = store_mail; tev = ERR; next = err;};
+transition = { tst = store_mail; tev = ERR; next = st_err;};

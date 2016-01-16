@@ -1,7 +1,7 @@
+#include "buf.h"
 #include "conn.h"
 #include "server_types.h"
-#include "server_worker.h"
-#include "session.h"
+#include "worker.h"
 #include "thpool.h"
 
 #include <arpa/inet.h>
@@ -143,10 +143,14 @@ int conn_append_to_write_buf(struct conn *conn, const char *data, uint32_t len)
 }
 
 // XXX: caller MUST free *data_p mem
-int conn_read_buf_get_and_flush(struct conn *conn, char **data_p, uint32_t *len)
+int conn_read_buf_get_and_flush(struct conn *conn, struct buf **to_buf)
 {
-	buf_copy(&conn->read, data_p, len);
-	buf_reset(&conn->read);
+	if (to_buf == NULL || *to_buf == NULL)
+		return -1;
+
+	buf_free(*to_buf);
+	buf_swap(*to_buf, &conn->read);
+	buf_ensure(&conn->read, 0);
 
 	return 0;
 }
@@ -232,7 +236,7 @@ static int run_server_loop(int listen_fd)
 
 						slog_d("%s", "server: add work to worker on new client");
 
-						thpool_add_work(thpool, (void*)server_worker_start, conn);
+						thpool_add_work(thpool, (void*)worker_start, conn);
 						break;
 					}
 				}
@@ -244,7 +248,7 @@ static int run_server_loop(int listen_fd)
 
 				struct conn *conn = conn_get_enabled(i);
 				if (conn != NULL);
-					thpool_add_work(thpool, (void*)server_worker_close, conn);
+					thpool_add_work(thpool, (void*)worker_close, conn);
 
 				fds[i].events = 0;
 				continue;
@@ -279,7 +283,7 @@ static int run_server_loop(int listen_fd)
 
 					struct conn *conn = conn_append_to_read_buf(i, buf, rc);
 					if (conn != NULL) {
-						thpool_add_work(thpool, (void*)server_worker_process, conn);
+						thpool_add_work(thpool, (void*)worker_process, conn);
 					} else {
 						slog_e("%s", "unable to store data from client: conn closing/doesn't exist");
 						close_conn = true;
@@ -289,7 +293,7 @@ static int run_server_loop(int listen_fd)
 				if (close_conn == true) {
 					struct conn *conn = conn_get_enabled(i);
 					if (conn != NULL)
-						thpool_add_work(thpool, (void*)server_worker_close, conn);
+						thpool_add_work(thpool, (void*)worker_close, conn);
 
 					fds[i].events = 0;
 				}
@@ -312,7 +316,7 @@ static int run_server_loop(int listen_fd)
 				if (rc < 0) {
 					slog_e("%s", "send() failed");
 
-					thpool_add_work(thpool, (void*)server_worker_close, conn);
+					thpool_add_work(thpool, (void*)worker_close, conn);
 				}
 
 				fds[i].events &= ~POLLOUT;

@@ -12,7 +12,6 @@
 #define THREAD_CNT_DEFAULT 3
 
 static config_t server_conf;
-
 struct server_conf conf;
 
 __attribute__((constructor))
@@ -25,82 +24,6 @@ __attribute__((destructor))
 static void server_deinit(void)
 {
 	config_destroy(&server_conf);
-}
-
-void buf_init(struct buf *buf, uint32_t prealloc)
-{
-	static uint32_t low_limit = 256;
-	prealloc = prealloc == 0 ? prealloc :
-		   prealloc > low_limit ? prealloc : low_limit;
-
-	buf->data = prealloc == 0 ? NULL : malloc(prealloc);
-	buf->len = 0;
-	buf->size = prealloc;
-}
-
-void buf_reset(struct buf *buf)
-{
-	buf->len = 0;
-}
-
-char *buf_get_data(struct buf *buf)
-{
-	return buf->data;
-}
-
-uint32_t buf_get_len(struct buf *buf)
-{
-	return buf->len;
-}
-
-void buf_free(struct buf *buf)
-{
-	if (buf->data != NULL)
-		free(buf->data);
-
-	buf->len = buf->size = 0;
-}
-
-void buf_append(struct buf *buf, const char *data, uint32_t len)
-{
-	static int growth = 2;
-	if ((buf->size - buf->len) < len) {
-		uint32_t need_mem = len - buf->size + buf->len;
-
-		if (need_mem < buf->size) {
-			need_mem = buf->size * growth;
-		}
-
-		buf->data = realloc(buf->data, need_mem);
-		if (buf->data == NULL) {
-			slog_e("%s", "no mem");
-			abort();
-		}
-		buf->size = need_mem;
-	}
-
-	memcpy(buf->data + buf->len, data, len);
-	buf->len += len;
-}
-
-int buf_copy(struct buf *buf, char **data_p, uint32_t *len)
-{
-	*data_p = NULL;
-	*len = 0;
-
-	if (buf_get_len(buf) == 0)
-		return 0;
-
-	char *data = strndup(buf_get_data(buf), buf_get_len(buf));
-	if (data == NULL) {
-		slog_e("%s", "no mem");
-		abort();
-	}
-
-	*data_p = data;
-	*len = buf_get_len(buf);
-
-	return 0;
 }
 
 static int server_parse_config(void)

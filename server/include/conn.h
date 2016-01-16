@@ -1,7 +1,7 @@
-
 #ifndef _SERVER_CONN_H_
 #define _SERVER_CONN_H_
 
+#include "buf.h"
 #include "server_types.h"
 #include <stdbool.h>
 
@@ -24,7 +24,7 @@ struct conn {
 
 int run_server();
 int conn_append_to_write_buf(struct conn *conn, const char *data, uint32_t len);
-int conn_read_buf_get_and_flush(struct conn *conn, char **data_p, uint32_t *len);
+int conn_read_buf_get_and_flush(struct conn *conn, struct buf **to_buf);
 struct buf *conn_get_read_buf(struct conn *conn);
 void conn_read_buf_flush(struct conn *conn);
 struct buf *conn_get_write_buf(struct conn *conn);

@@ -12,6 +12,7 @@
 #define THREAD_CNT_DEFAULT 3
 
 static config_t server_conf;
+static char *hostname_default = "SMTP_SERVER";
 struct server_conf conf;
 
 __attribute__((constructor))
@@ -53,6 +54,11 @@ static int server_parse_config(void)
 
 	if (config_lookup_int(&server_conf, "thread_cnt", &conf.thread_cnt) != CONFIG_TRUE)
 		conf.thread_cnt = THREAD_CNT_DEFAULT;
+
+	if (config_lookup_string(&server_conf, "hostname", &conf.hostname) != CONFIG_TRUE) {
+		slog_d("no `hostname' parametr in config. use default: %s'", hostname_default);
+		conf.hostname = hostname_default;
+	}
 
 	if (config_setting_lookup_int(system, "log_level", &log_lvl) != CONFIG_TRUE ||
 	    log_lvl < 0 || log_lvl >= SERVER_LOG_LVL_LAST) {

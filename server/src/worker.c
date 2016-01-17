@@ -17,8 +17,8 @@ static struct session *session_create(void *conn)
 
 	s->conn = conn;
 	s->id = id++;
-	smtp_data_init(&s->s_data);
-	
+	smtp_data_init(&s->s_data, conf.hostname);
+
 	return s;
 }
 

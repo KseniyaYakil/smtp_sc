@@ -24,6 +24,7 @@ struct server_conf {
 	enum server_log_lvl log_lvl;
 	const char *mail_dir;
 	const char *queue_dir;
+	const char *hostname;
 };
 
 extern struct server_conf conf;

@@ -36,7 +36,7 @@ struct smtp_data {
 	} answer;
 };
 
-void smtp_data_init(struct smtp_data *s_data);
+void smtp_data_init(struct smtp_data *s_data, const char *name);
 void smtp_data_destroy(struct smtp_data *s_data);
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg);
 

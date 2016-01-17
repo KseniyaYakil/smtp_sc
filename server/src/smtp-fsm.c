@@ -231,7 +231,8 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-    { SMTP_ST_*, smtp_do_process_verify_ok },       /* EVT:  OK */
+	// TODO: check this!
+   // { SMTP_ST_*, smtp_do_process_verify_ok },       /* EVT:  OK */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -1574,7 +1575,7 @@ smtp_step(
     }
 
     if (pT != NULL)
-        nxtSt = (*pT)( *data, smtp_state, nxtSt, trans_evt );
+        nxtSt = (*pT)( data, smtp_state, nxtSt, trans_evt );
 
 
 

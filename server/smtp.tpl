@@ -7,7 +7,7 @@ event = HELO, EHLO, VRFY, RSET, QUIT, MAIL, RCPT, DATA, DATA_RCV, DATA_END, OK, 
 type = reent;
 method = call;
 prefix = smtp;
-cookie = "struct session *session";
+cookie = "void *data";
 
 transition = { tst = "*"; tev = VRFY; next = process_verify;};
 transition = { tst = process_verify; tev = OK; next = "*";};

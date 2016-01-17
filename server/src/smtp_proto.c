@@ -11,44 +11,67 @@
 #define SP		"\\s"
 #define CRLF		"\13\10"
 
-const char *smtp_cmd_arr[SMTP_CMD_LAST] = {
-	[SMTP_CMD_HELO] = "HELO",
-	[SMTP_CMD_EHLO] = "EHLO",
-	[SMTP_CMD_MAIL] = "MAIL",
-	[SMTP_CMD_DATA] = "DATA",
-	[SMTP_CMD_RCPT] = "RCPT",
-	[SMTP_CMD_RSET] = "RSET",
-	[SMTP_CMD_VRFY] = "VRFY",
-	[SMTP_CMD_QUIT] = "QUIT",
-};
-
 // TODO: SP + CRLF
-struct smtp_reg {
-	pcre *re;
-	const char str[];
+struct smtp_cmd_info {
+	char *cmd;
+	uint8_t cmd_len;
+
+	struct smtp_reg {
+		pcre *re;
+		const char *str;
+	} re;
 };
 
-static struct smtp_reg *smtp_reg_arr[SMTP_CMD_LAST] = {
+struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 	[SMTP_CMD_HELO] = {
-		.str = "("DOMAIN")",
+		.cmd = "HELO",
+		.cmd_len = sizeof("HELO"),
+		.re = {
+			.str = "("DOMAIN")"
+		}
 	},
-
+	[SMTP_CMD_EHLO] = {
+		.cmd = "EHLO",
+		.cmd_len = sizeof("EHLO"),
+	},
+	[SMTP_CMD_MAIL] = {
+		.cmd = "MAIL",
+		.cmd_len = sizeof("MAIL"),
+	},
+	[SMTP_CMD_DATA] = {
+		.cmd = "DATA",
+		.cmd_len = sizeof("DATA"),
+	},
+	[SMTP_CMD_RCPT] = {
+		.cmd = "RCPT",
+		.cmd_len = sizeof("RCPT"),
+	},
+	[SMTP_CMD_RSET] = {
+		.cmd = "RSET",
+		.cmd_len = sizeof("RSET"),
+	},
+	[SMTP_CMD_VRFY] = {
+		.cmd = "VRFY",
+		.cmd_len = sizeof("VRFY"),
+	},
+	[SMTP_CMD_QUIT] = {
+		.cmd = "QUIT",
+		.cmd_len = sizeof("QUIT"),
+	},
 };
-
 
 __attribute__((constructor))
 static void smtp_data_internal_init(void)
 {
 	for (uint32_t i = 0; i < SMTP_CMD_LAST; i++) {
-		struct smtp_reg *r = &smtp_reg_arr[i];
+		struct smtp_reg *r = &smtp_cmd_arr[i].re;
 		const char *err;
 		int err_off;
 
 		// TODO: determine all and remore this check
-		if (str->str[0] == '\0')
+		if (r->str == NULL)
 			continue;
 
-		
 		r->re = pcre_compile(r->str, PCRE_CASELESS, &err, &err_off, NULL);
 		if (r->re == NULL) {
 			slog_e("smtp_data: incorrect regular expression for cmd %d", i);
@@ -59,7 +82,7 @@ static void smtp_data_internal_init(void)
 };
 // TODO: destructor
 
-static char *cmd_parse(pcre *re, const char *data, int data_len, int *len) {
+static const char *cmd_parse(pcre *re, const char *data, int data_len, int *len) {
 	int ovec[24];
 	int ovecsize = sizeof(ovec);
 
@@ -68,7 +91,7 @@ static char *cmd_parse(pcre *re, const char *data, int data_len, int *len) {
 	int off = ovec[0];
 	*len = ovec[1] - ovec[0];
 	if (rc < 0) {
-		slog_e("Invalid command came, data == '%.*s'\n", (int)data_len, data);
+		slog_e("Invalid command came, data == '%.*s'", (int)data_len, data);
 		*len = -1;
 		return NULL;
 	}
@@ -92,13 +115,13 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 		return smtp_cmd;
 
 	for (uint32_t i = 0; i < SMTP_CMD_LAST; i++) {
-		if (strncmp(smtp_cmd_arr[i], cmd, sizeof(smtp_cmd_arr[i])) == 0) {
-			smtp_cmd = i;	
+		if (strncmp(smtp_cmd_arr[i].cmd, cmd, smtp_cmd_arr[i].cmd_len) == 0) {
+			smtp_cmd = i;
 			break;
 		}
 	}
 
-	return smtp_cmd;	
+	return smtp_cmd;
 }
 
 void smtp_data_init(struct smtp_data *s_data, const char *name)
@@ -106,7 +129,7 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 	*s_data = (struct smtp_data) {
 		.state = SMTP_ST_INIT,
 		.name = name,
-	}
+	};
 }
 
 void smtp_data_destroy(struct smtp_data *s_data)
@@ -117,9 +140,9 @@ void smtp_data_destroy(struct smtp_data *s_data)
 
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 {
-	enum smtp_cmd smtp_smd = determine_cmd(msg);
+	enum smtp_cmd smtp_cmd = determine_cmd(msg);
 	slog_d("smtp_data: process msg from client: cmd %d", smtp_cmd);
-	
+
 	switch (smtp_cmd) {
 	case SMTP_CMD_EMPTY:
 	case SMTP_CMD_HELO:
@@ -130,14 +153,13 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 	case SMTP_CMD_RSET:
 	case SMTP_CMD_VRFY:
 	case SMTP_CMD_QUIT: {
-		if (smtp_cmd_arr[smtp_cmd].re == NULL)
+		struct smtp_cmd_info *info = &smtp_cmd_arr[smtp_cmd];
+		if (info->re.re == NULL)
 			break;
 
-		const char *args_str = buf_get_data(msg) +
-				       sizeof(smtp_cmd_arr[smtp_cmd].str);
-		uint32_t len = buf_get_len(msg) -
-			       sizeof(smtp_cmd_arr[smtp_cmd].str);
-		const char *args = cmd_parse(smtp_cmd[smtp_cmd].re, args_str, len, &len);
+		const char *args_str = buf_get_data(msg) + info->cmd_len;
+		int len = buf_get_len(msg) - info->cmd_len;
+		const char *args = cmd_parse(info->re.re, args_str, len, &len);
 		if (args == NULL) {
 			// TODO: go to err state
 			slog_d("incorret args for cmd %d", smtp_cmd);
@@ -156,7 +178,7 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 	ans->ret_msg_len = snprintf(ans->ret_msg, sizeof(ans->ret_msg), "%s", "OK");
 
 	if (ans->ret_msg_len == -1) {
-		slog_e("smtp_data: err in snprintf");
+		slog_e("%s", "smtp_data: err in snprintf");
 		return -1;
 	}
 

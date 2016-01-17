@@ -84,12 +84,12 @@ typedef enum {
  *  SMTP_ST_DONE or SMTP_ST_INVALID, it resets to
  *  SMTP_ST_INIT and returns SMTP_ST_INIT.
  */
-/*extern te_smtp_state
+extern te_smtp_state
 smtp_step(
     te_smtp_state smtp_state,
     te_smtp_event trans_evt,
     void *data );
-*/
+
 #endif /* AUTOFSM_SMTP_FSM_H_GUARD */
 /*
  * Local Variables:

@@ -36,11 +36,13 @@
  *  ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 #define DEFINE_FSM
+#include "server_types.h"
 #include "smtp-fsm.h"
 #include "smtp_proto.h"
 
-#include <stdio.h>
 #include <ctype.h>
+#include <pcre.h>
+#include <stdio.h>
 
 /*
  *  Do not make changes to this file, except between the START/END
@@ -133,8 +135,8 @@ static smtp_callback_t
     smtp_do_parse_data_mail,
     smtp_do_parse_data_rcpt,
     smtp_do_process_quit_ok,
-    smtp_do_process_rset_ok,
-    smtp_do_process_verify_ok,
+    //smtp_do_process_rset_ok,
+    //smtp_do_process_verify_ok,
     smtp_do_rcpt_begin_data,
     smtp_do_rcpt_begin_data_rcv,
     smtp_do_rcpt_begin_ehlo,
@@ -147,8 +149,8 @@ static smtp_callback_t
     smtp_do_rcpt_middle_helo,
     smtp_do_rcpt_middle_mail,
     smtp_do_rcpt_middle_rcpt,
-    smtp_do_seq_err_ok,
-    smtp_do_st_err_ok,
+    //smtp_do_seq_err_ok,
+    //smtp_do_st_err_ok,
     smtp_do_store_mail_err,
     smtp_do_store_mail_ok,
     smtp_do_trans_begin_data,
@@ -247,7 +249,7 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-    { SMTP_ST_*, smtp_do_process_rset_ok },         /* EVT:  OK */
+   // { SMTP_ST_*, smtp_do_process_rset_ok },         /* EVT:  OK */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -262,7 +264,7 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-    { SMTP_ST_*, smtp_do_seq_err_ok },              /* EVT:  OK */
+   // { SMTP_ST_*, smtp_do_seq_err_ok },              /* EVT:  OK */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -277,7 +279,7 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-    { SMTP_ST_*, smtp_do_st_err_ok },               /* EVT:  OK */
+   // { SMTP_ST_*, smtp_do_st_err_ok },               /* EVT:  OK */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -431,6 +433,54 @@ static int smtp_invalid_transition( te_smtp_state st, te_smtp_event evt );
  *
  *  Print out an invalid transition message and return EXIT_FAILURE
  */
+
+static const char *cmd_parse(pcre *re, const char *data, int data_len, int *len) {
+	int ovec[24];
+	int ovecsize = sizeof(ovec);
+
+	int rc = pcre_exec(re, 0, data, (int)data_len, 0, 0, ovec, ovecsize);
+
+	int off = ovec[0];
+	*len = ovec[1] - ovec[0];
+	if (rc < 0) {
+		slog_e("Invalid command came, data == '%.*s'", (int)data_len, data);
+		*len = -1;
+		return NULL;
+	}
+
+	if (*len == 0) {
+		slog_d("%s", "Empty addr found cmd");
+		return "";
+	}
+
+	slog_d("smtp_data: cmd_parsed: '%.*s'", *len, data + off);
+	return data + off;
+}
+
+static te_smtp_event parse_cmd_internal(struct smtp_data *s,
+					const char **data, int *len)
+{
+	struct smtp_cmd_info *info = &smtp_cmd_arr[s->cur_cmd];
+	slog_d("TEST: parse cmd : cmd %d", s->cur_cmd);
+
+	if (info->re.re == NULL)
+		return SMTP_EV_ERR;
+
+	const char *args = cmd_parse(info->re.re, *data, *len, len);
+	if (args == NULL) {
+		*len = 0;
+		*data = NULL;
+
+		slog_d("incorret args for cmd %d", s->cur_cmd);
+		return SMTP_EV_ERR;
+	}
+
+	slog_d("accepted cmd and args `%s'", args);
+	*data = args;
+
+	return SMTP_EV_OK;
+}
+
 static int
 smtp_invalid_transition( te_smtp_state st, te_smtp_event evt )
 {
@@ -1050,7 +1100,21 @@ smtp_do_init_helo(
     te_smtp_event trans_evt )
 {
 /*  START == INIT HELO == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	slog_d("TEST: do init helo: initial %s trans %s next %s",
+		SMTP_STATE_NAME(initial),
+		SMTP_EVT_NAME(trans_evt),
+		SMTP_STATE_NAME(maybe_next));
+
+	struct smtp_data *s = (struct smtp_data *)data;
+	s->answer.ret_msg_len = 0;
+
+	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
+
+	if (s->answer.ret_msg_len == 0)
+		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
+
+	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+    return next;
 /*  END   == INIT HELO == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1134,6 +1198,26 @@ smtp_do_parse_cmd_helo(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
+	slog_d("%s", "TEST: parse cmd helo");
+
+	struct smtp_data *s = (struct smtp_data*)data;
+	const char *domain = s->client.data;
+	int len = s->client.len;
+
+	te_smtp_event evt = parse_cmd_internal(s, &domain, &len);
+
+	if (evt == SMTP_EV_ERR) {
+		char *err_msg = "incorrect domain argument";
+		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+
+		return initial;
+	}
+
+	s->client.domain = strndup(domain, len);
+	if (s->client.domain == NULL)
+		abort();
+
+	slog_d("TEST: parse cmd helo: next state %s", SMTP_STATE_NAME(maybe_next));
     return maybe_next;
 /*  END   == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1258,29 +1342,31 @@ smtp_do_process_quit_ok(
 /*  END   == PROCESS QUIT OK == DO NOT CHANGE THIS COMMENT  */
 }
 
+/*
 static te_smtp_state
 smtp_do_process_rset_ok(
     void *data,
     te_smtp_state initial,
     te_smtp_state maybe_next,
     te_smtp_event trans_evt )
-{
+{*/
 /*  START == PROCESS RSET OK == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+//    return maybe_next;
 /*  END   == PROCESS RSET OK == DO NOT CHANGE THIS COMMENT  */
-}
+//}
 
+/*
 static te_smtp_state
 smtp_do_process_verify_ok(
     void *data,
     te_smtp_state initial,
     te_smtp_state maybe_next,
     te_smtp_event trans_evt )
-{
+{*/
 /*  START == PROCESS VERIFY OK == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+//    return maybe_next;
 /*  END   == PROCESS VERIFY OK == DO NOT CHANGE THIS COMMENT  */
-}
+//}
 
 static te_smtp_state
 smtp_do_rcpt_begin_data(
@@ -1426,29 +1512,32 @@ smtp_do_rcpt_middle_rcpt(
 /*  END   == RCPT MIDDLE RCPT == DO NOT CHANGE THIS COMMENT  */
 }
 
+/*
 static te_smtp_state
 smtp_do_seq_err_ok(
     void *data,
     te_smtp_state initial,
     te_smtp_state maybe_next,
     te_smtp_event trans_evt )
-{
+{*/
 /*  START == SEQ ERR OK == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+//    return maybe_next;
 /*  END   == SEQ ERR OK == DO NOT CHANGE THIS COMMENT  */
-}
+//}
 
+/*
 static te_smtp_state
 smtp_do_st_err_ok(
     void *data,
     te_smtp_state initial,
     te_smtp_state maybe_next,
     te_smtp_event trans_evt )
-{
+{*/
 /*  START == ST ERR OK == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+
+//    return maybe_next;
 /*  END   == ST ERR OK == DO NOT CHANGE THIS COMMENT  */
-}
+//}
 
 static te_smtp_state
 smtp_do_store_mail_err(

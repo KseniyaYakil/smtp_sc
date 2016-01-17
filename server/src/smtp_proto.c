@@ -1,5 +1,6 @@
 #include "smtp_proto.h"
 
+#include <assert.h>
 #include <pcre.h>
 
 #define NUMBER		"(?:\\d+)"
@@ -8,58 +9,57 @@
 #define NAME		"(?:[a-zA-Z][a-zA-Z\\d\\-]*[a-zA-Z\\d])"
 #define ELEMENT		"(?:"NAME"|(?:#"NUMBER")|(?:\\["DOTNUM"\\]))"
 #define DOMAIN		"(?:"ELEMENT"(?:\\."ELEMENT")*)"
-#define SP		"\\s"
-#define CRLF		"\13\10"
+#define SP		" "
+#define CRLF		"\r\n"
 
 // TODO: SP + CRLF
-struct smtp_cmd_info {
-	char *cmd;
-	uint8_t cmd_len;
-
-	struct smtp_reg {
-		pcre *re;
-		const char *str;
-	} re;
-};
-
 struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 	[SMTP_CMD_HELO] = {
 		.cmd = "HELO",
-		.cmd_len = sizeof("HELO"),
+		.cmd_len = sizeof("HELO") - 1,
+		.evt = SMTP_EV_HELO,
 		.re = {
 			.str = "("DOMAIN")"
 		}
 	},
 	[SMTP_CMD_EHLO] = {
 		.cmd = "EHLO",
-		.cmd_len = sizeof("EHLO"),
+		.cmd_len = sizeof("EHLO") - 1,
+		.evt = SMTP_EV_EHLO,
 	},
 	[SMTP_CMD_MAIL] = {
 		.cmd = "MAIL",
-		.cmd_len = sizeof("MAIL"),
+		.cmd_len = sizeof("MAIL") - 1,
+		.evt = SMTP_EV_MAIL,
 	},
 	[SMTP_CMD_DATA] = {
 		.cmd = "DATA",
-		.cmd_len = sizeof("DATA"),
+		.cmd_len = sizeof("DATA") - 1,
+		.evt = SMTP_EV_DATA,
 	},
 	[SMTP_CMD_RCPT] = {
 		.cmd = "RCPT",
-		.cmd_len = sizeof("RCPT"),
+		.cmd_len = sizeof("RCPT") - 1,
+		.evt = SMTP_EV_RCPT,
 	},
 	[SMTP_CMD_RSET] = {
 		.cmd = "RSET",
-		.cmd_len = sizeof("RSET"),
+		.cmd_len = sizeof("RSET") - 1,
+		.evt = SMTP_EV_RSET,
 	},
 	[SMTP_CMD_VRFY] = {
 		.cmd = "VRFY",
-		.cmd_len = sizeof("VRFY"),
+		.cmd_len = sizeof("VRFY") - 1,
+		.evt = SMTP_EV_VRFY,
 	},
 	[SMTP_CMD_QUIT] = {
 		.cmd = "QUIT",
-		.cmd_len = sizeof("QUIT"),
+		.cmd_len = sizeof("QUIT") - 1,
+		.evt = SMTP_EV_QUIT,
 	},
 };
 
+// TODO: destructor
 __attribute__((constructor))
 static void smtp_data_internal_init(void)
 {
@@ -78,32 +78,7 @@ static void smtp_data_internal_init(void)
 			abort();
 		}
 	}
-
 };
-// TODO: destructor
-
-static const char *cmd_parse(pcre *re, const char *data, int data_len, int *len) {
-	int ovec[24];
-	int ovecsize = sizeof(ovec);
-
-	int rc = pcre_exec(re, 0, data, (int)data_len, 0, 0, ovec, ovecsize);
-
-	int off = ovec[0];
-	*len = ovec[1] - ovec[0];
-	if (rc < 0) {
-		slog_e("Invalid command came, data == '%.*s'", (int)data_len, data);
-		*len = -1;
-		return NULL;
-	}
-
-	if (*len == 0) {
-		slog_d("%s", "Empty addr found cmd");
-		return "";
-	}
-
-	slog_d("smtp_data: cmd_parsed: '%.*s'", *len, data + off);
-	return data + off;
-}
 
 static enum smtp_cmd determine_cmd(struct buf *buf)
 {
@@ -115,7 +90,10 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 		return smtp_cmd;
 
 	for (uint32_t i = 0; i < SMTP_CMD_LAST; i++) {
-		if (strncmp(smtp_cmd_arr[i].cmd, cmd, smtp_cmd_arr[i].cmd_len) == 0) {
+		if (smtp_cmd_arr[i].cmd == NULL)
+			continue;
+
+		if (memcmp(smtp_cmd_arr[i].cmd, cmd, smtp_cmd_arr[i].cmd_len) == 0) {
 			smtp_cmd = i;
 			break;
 		}
@@ -130,57 +108,54 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 		.state = SMTP_ST_INIT,
 		.name = name,
 	};
+
+	char info[SMTP_RET_MSG_LEN];
+	char *msg = "Simple Mail Transfer Service Ready";
+	int len = snprintf(info, sizeof(info), "%s %s", name, msg);
+	if (len < 0)
+		abort();
+
+	SMTP_DATA_FORM_ANSWER(s_data, 220, info);
 }
 
 void smtp_data_destroy(struct smtp_data *s_data)
 {
-	(void)s_data;
+	if (s_data->client.domain != NULL)
+		free(s_data->client.domain);
 }
-
 
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 {
-	enum smtp_cmd smtp_cmd = determine_cmd(msg);
-	slog_d("smtp_data: process msg from client: cmd %d", smtp_cmd);
+	te_smtp_event evt;
+	struct smtp_cmd_info *info;
 
-	switch (smtp_cmd) {
-	case SMTP_CMD_EMPTY:
-	case SMTP_CMD_HELO:
-	case SMTP_CMD_EHLO:
-	case SMTP_CMD_MAIL:
-	case SMTP_CMD_DATA:
-	case SMTP_CMD_RCPT:
-	case SMTP_CMD_RSET:
-	case SMTP_CMD_VRFY:
-	case SMTP_CMD_QUIT: {
-		struct smtp_cmd_info *info = &smtp_cmd_arr[smtp_cmd];
-		if (info->re.re == NULL)
-			break;
+	s_data->cur_cmd = determine_cmd(msg);
 
-		const char *args_str = buf_get_data(msg) + info->cmd_len;
-		int len = buf_get_len(msg) - info->cmd_len;
-		const char *args = cmd_parse(info->re.re, args_str, len, &len);
-		if (args == NULL) {
-			// TODO: go to err state
-			slog_d("incorret args for cmd %d", smtp_cmd);
-			break;
+	slog_d("smtp_data: process msg from client: cmd %d", s_data->cur_cmd);
+
+	assert(s_data->cur_cmd < SMTP_CMD_LAST);
+
+	info = &smtp_cmd_arr[s_data->cur_cmd];
+	s_data->client.data = buf_get_data(msg) + info->cmd_len;
+	s_data->client.len = buf_get_len(msg) - info->cmd_len;
+
+	if (s_data->cur_cmd == SMTP_CMD_EMPTY) {
+		if (buf_get_len(msg) > sizeof("\r\n")) {
+			evt = SMTP_EV_DATA_RCV;
+		} else {
+			s_data->client.data = NULL;
+			s_data->client.len = 0;
+
+			s_data->answer.ret_msg_len = 0;
+			return 0;
 		}
+	} else
+		evt = smtp_cmd_arr[s_data->cur_cmd].evt;
 
-		slog_d("accepted cmd and args %s", args);
-		break;
-	}
-	default:
-		abort();
-	};
+	s_data->state = smtp_step(s_data->state, evt, s_data);
 
-	struct smtp_msg *ans = &s_data->answer;
-	ans->ret = 200;
-	ans->ret_msg_len = snprintf(ans->ret_msg, sizeof(ans->ret_msg), "%s", "OK");
-
-	if (ans->ret_msg_len == -1) {
-		slog_e("%s", "smtp_data: err in snprintf");
+	if (s_data->state == SMTP_ST_ST_ERR)
 		return -1;
-	}
 
 	return 0;
 }

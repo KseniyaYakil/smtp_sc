@@ -227,7 +227,7 @@ static int run_server_loop(int listen_fd)
 
 						fds[f] = (struct pollfd) {
 							.fd = new_fd,
-							.events = POLLIN,
+							.events = POLLIN | POLLOUT,
 							.revents = 0
 						};
 

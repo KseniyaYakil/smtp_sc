@@ -1107,6 +1107,23 @@ smtp_do_init_ehlo(
     te_smtp_event trans_evt )
 {
 /*  START == INIT EHLO == DO NOT CHANGE THIS COMMENT  */
+	slog_d("TEST: do init ehlo: initial %s trans %s next %s",
+		SMTP_STATE_NAME(initial),
+		SMTP_EVT_NAME(trans_evt),
+		SMTP_STATE_NAME(maybe_next));
+
+	struct smtp_data *s = (struct smtp_data *)data;
+	s->answer.ret_msg_len = 0;
+
+	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
+
+	slog_d("TEST: init_ehlo msg len %d", s->answer.ret_msg_len);
+	if (s->answer.ret_msg_len == 0)
+		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
+
+	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+    return next;
+
     return maybe_next;
 /*  END   == INIT EHLO == DO NOT CHANGE THIS COMMENT  */
 }

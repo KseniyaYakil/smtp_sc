@@ -26,6 +26,9 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd = "EHLO",
 		.cmd_len = sizeof("EHLO") - 1,
 		.evt = SMTP_EV_EHLO,
+		.re = {
+			.str = "("DOMAIN")"
+		}
 	},
 	[SMTP_CMD_MAIL] = {
 		.cmd = "MAIL",
@@ -94,7 +97,10 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 			continue;
 
 		if (memcmp(smtp_cmd_arr[i].cmd, cmd, smtp_cmd_arr[i].cmd_len) == 0) {
-			smtp_cmd = i;
+			if (i == SMTP_CMD_EHLO) {
+				smtp_cmd = SMTP_CMD_HELO;
+			} else
+				smtp_cmd = i;
 			break;
 		}
 	}

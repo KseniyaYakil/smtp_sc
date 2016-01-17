@@ -103,9 +103,17 @@ void worker_process(struct conn *conn)
 	slog_d("worker: data from client `%.*s'",
 		client_msg.len, client_msg.data);
 
-	if (smtp_data_process(&s->s_data, &client_msg) != 0) {
-		// internal error -> close connection
-		slog_e("internal error occured in session %"PRIu32" close conn", s->id);
+	int ret = smtp_data_process(&s->s_data, &client_msg);
+
+	if (ret != 0) {
+		if (ret == -1) {
+			slog_e("internal error occured in"
+			       " session %"PRIu32" close conn", s->id);
+		} else {
+			slog_d("QUIT smtp auto: close conn %"PRIu32, s->id);
+			worker_send_answer(s);
+		}
+
 		worker_close(s->conn);
 
 		return;

@@ -135,7 +135,7 @@ static smtp_callback_t
     smtp_do_parse_data_mail,
     smtp_do_parse_data_rcpt,
     smtp_do_process_quit_ok,
-    //smtp_do_process_rset_ok,
+    smtp_do_process_rset_ok,
     //smtp_do_process_verify_ok,
     smtp_do_rcpt_begin_data,
     smtp_do_rcpt_begin_data_rcv,
@@ -149,7 +149,7 @@ static smtp_callback_t
     smtp_do_rcpt_middle_helo,
     smtp_do_rcpt_middle_mail,
     smtp_do_rcpt_middle_rcpt,
-    //smtp_do_seq_err_ok,
+    smtp_do_seq_err_ok,
     //smtp_do_st_err_ok,
     smtp_do_store_mail_err,
     smtp_do_store_mail_ok,
@@ -213,13 +213,13 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_PROCESS_VERIFY, smtp_do_PROCESS_QUIT_vrfy }, /* EVT:  VRFY */
     { SMTP_ST_PROCESS_RSET, smtp_do_PROCESS_QUIT_rset }, /* EVT:  RSET */
     { SMTP_ST_PROCESS_QUIT, smtp_do_PROCESS_QUIT_quit }, /* EVT:  QUIT */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  MAIL */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  RCPT */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
+    { SMTP_ST_INIT, smtp_do_PROCESS_QUIT_quit},           /* EVT:  MAIL */
+    { SMTP_ST_TRANS_BEGIN, smtp_do_PROCESS_QUIT_quit},           /* EVT:  MAIL */
+    { SMTP_ST_RCPT_BEGIN, smtp_do_PROCESS_QUIT_quit},           /* EVT:  MAIL */
+    { SMTP_ST_RCPT_MIDDLE, smtp_do_PROCESS_QUIT_quit},           /* EVT:  MAIL */
+    { SMTP_ST_DATA_WAIT, smtp_do_PROCESS_QUIT_quit},           /* EVT:  MAIL */
+    { SMTP_ST_PARSE_DATA, smtp_do_PROCESS_QUIT_quit},           /* EVT:  MAIL */
     { SMTP_ST_DONE, smtp_do_process_quit_ok },      /* EVT:  OK */
-    { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
   /* STATE 3:  SMTP_ST_PROCESS_VERIFY */
@@ -228,13 +228,12 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_PROCESS_VERIFY, smtp_do_PROCESS_VERIFY_vrfy }, /* EVT:  VRFY */
     { SMTP_ST_PROCESS_RSET, smtp_do_PROCESS_VERIFY_rset }, /* EVT:  RSET */
     { SMTP_ST_PROCESS_QUIT, smtp_do_PROCESS_VERIFY_quit }, /* EVT:  QUIT */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  MAIL */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  RCPT */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-	// TODO: check this!
-   // { SMTP_ST_*, smtp_do_process_verify_ok },       /* EVT:  OK */
+    { SMTP_ST_INIT, smtp_do_PROCESS_VERIFY_vrfy },       /* EVT:  OK */
+    { SMTP_ST_TRANS_BEGIN, smtp_do_PROCESS_VERIFY_vrfy },       /* EVT:  VRFY */
+    { SMTP_ST_RCPT_BEGIN, smtp_do_PROCESS_VERIFY_vrfy },       /* EVT:  VRFY */
+    { SMTP_ST_RCPT_MIDDLE, smtp_do_PROCESS_VERIFY_vrfy },       /* EVT:  VRFY */
+    { SMTP_ST_DATA_WAIT, smtp_do_PROCESS_VERIFY_vrfy },       /* EVT:  VRFY */
+    { SMTP_ST_PARSE_DATA, smtp_do_PROCESS_VERIFY_vrfy },       /* EVT:  VRFY */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -249,7 +248,7 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-   // { SMTP_ST_*, smtp_do_process_rset_ok },         /* EVT:  OK */
+    { SMTP_ST_INIT, smtp_do_process_rset_ok },         /* EVT:  OK */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -259,12 +258,12 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_PROCESS_VERIFY, smtp_do_SEQ_ERR_vrfy }, /* EVT:  VRFY */
     { SMTP_ST_PROCESS_RSET, smtp_do_SEQ_ERR_rset }, /* EVT:  RSET */
     { SMTP_ST_PROCESS_QUIT, smtp_do_SEQ_ERR_quit }, /* EVT:  QUIT */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  MAIL */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  RCPT */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
-    { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-   // { SMTP_ST_*, smtp_do_seq_err_ok },              /* EVT:  OK */
+    { SMTP_ST_INIT, smtp_do_seq_err_ok },              /* EVT:  OK */
+    { SMTP_ST_TRANS_BEGIN, smtp_do_seq_err_ok },              /* EVT:  OK */
+    { SMTP_ST_RCPT_BEGIN, smtp_do_seq_err_ok },              /* EVT:  OK */
+    { SMTP_ST_RCPT_MIDDLE, smtp_do_seq_err_ok },              /* EVT:  OK */
+    { SMTP_ST_DATA_WAIT, smtp_do_seq_err_ok },              /* EVT:  OK */
+    { SMTP_ST_PARSE_DATA, smtp_do_seq_err_ok },              /* EVT:  OK */
     { SMTP_ST_INVALID, smtp_do_invalid }            /* EVT:  ERR */
   },
 
@@ -500,7 +499,7 @@ smtp_do_DATA_WAIT_quit(
     te_smtp_event trans_evt )
 {
 /*  START == DATA WAIT QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == DATA WAIT QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -512,7 +511,7 @@ smtp_do_DATA_WAIT_rset(
     te_smtp_event trans_evt )
 {
 /*  START == DATA WAIT RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == DATA WAIT RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -524,7 +523,7 @@ smtp_do_DATA_WAIT_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == DATA WAIT VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == DATA WAIT VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -536,7 +535,7 @@ smtp_do_INIT_quit(
     te_smtp_event trans_evt )
 {
 /*  START == INIT QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == INIT QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -548,7 +547,7 @@ smtp_do_INIT_rset(
     te_smtp_event trans_evt )
 {
 /*  START == INIT RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == INIT RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -560,7 +559,7 @@ smtp_do_INIT_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == INIT VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == INIT VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -596,7 +595,7 @@ smtp_do_PARSE_CMD_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == PARSE CMD VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -608,7 +607,7 @@ smtp_do_PARSE_DATA_quit(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE DATA QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == PARSE DATA QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -620,7 +619,7 @@ smtp_do_PARSE_DATA_rset(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE DATA RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == PARSE DATA RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -632,7 +631,7 @@ smtp_do_PARSE_DATA_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE DATA VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == PARSE DATA VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -644,7 +643,19 @@ smtp_do_PROCESS_QUIT_quit(
     te_smtp_event trans_evt )
 {
 /*  START == PROCESS QUIT QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	slog_d("%s", "TEST: quit process");
+	struct smtp_data *s = (struct smtp_data*)data;
+	char *msg = "Service closing transmission channel";
+	char info[SMTP_RET_MSG_LEN];
+	int len = snprintf(info, sizeof(info), "%s %s", s->name, msg);
+	if (len < 0) {
+		slog_e("%s", "no mem");
+		abort();
+	}
+
+	SMTP_DATA_FORM_ANSWER(s, 221, info);
+
+    return SMTP_ST_DONE;
 /*  END   == PROCESS QUIT QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -740,7 +751,12 @@ smtp_do_PROCESS_VERIFY_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == PROCESS VERIFY VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	slog_d("%s", "TEST: verify process");
+	char *err_msg = "Access denied to you";
+	struct smtp_data *s = (struct smtp_data *)data;
+	SMTP_DATA_FORM_ANSWER(s, 550, err_msg);
+
+    return s->state;
 /*  END   == PROCESS VERIFY VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -752,7 +768,7 @@ smtp_do_RCPT_BEGIN_quit(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == RCPT BEGIN QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -764,7 +780,7 @@ smtp_do_RCPT_BEGIN_rset(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == RCPT BEGIN RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -776,7 +792,7 @@ smtp_do_RCPT_BEGIN_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == RCPT BEGIN VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -788,7 +804,7 @@ smtp_do_RCPT_MIDDLE_quit(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == RCPT MIDDLE QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -800,7 +816,7 @@ smtp_do_RCPT_MIDDLE_rset(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == RCPT MIDDLE RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -812,7 +828,7 @@ smtp_do_RCPT_MIDDLE_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == RCPT MIDDLE VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -860,7 +876,7 @@ smtp_do_STORE_MAIL_quit(
     te_smtp_event trans_evt )
 {
 /*  START == STORE MAIL QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == STORE MAIL QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -872,7 +888,7 @@ smtp_do_STORE_MAIL_rset(
     te_smtp_event trans_evt )
 {
 /*  START == STORE MAIL RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == STORE MAIL RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -884,7 +900,7 @@ smtp_do_STORE_MAIL_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == STORE MAIL VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == STORE MAIL VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -932,7 +948,7 @@ smtp_do_TRANS_BEGIN_quit(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN QUIT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_QUIT, SMTP_EV_OK, data);
 /*  END   == TRANS BEGIN QUIT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -944,7 +960,7 @@ smtp_do_TRANS_BEGIN_rset(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN RSET == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_RSET, SMTP_EV_OK, data);
 /*  END   == TRANS BEGIN RSET == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -956,7 +972,7 @@ smtp_do_TRANS_BEGIN_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN VRFY == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	return smtp_step(SMTP_ST_PROCESS_VERIFY, SMTP_EV_VRFY, data);
 /*  END   == TRANS BEGIN VRFY == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1064,7 +1080,8 @@ smtp_do_init_data(
     te_smtp_event trans_evt )
 {
 /*  START == INIT DATA == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == INIT DATA == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1076,7 +1093,9 @@ smtp_do_init_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == INIT DATA RCV == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == INIT DATA RCV == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1110,6 +1129,7 @@ smtp_do_init_helo(
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
+	slog_d("TEST: init_helo msg len %d", s->answer.ret_msg_len);
 	if (s->answer.ret_msg_len == 0)
 		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
 
@@ -1126,7 +1146,9 @@ smtp_do_init_mail(
     te_smtp_event trans_evt )
 {
 /*  START == INIT MAIL == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+
+    return next;
 /*  END   == INIT MAIL == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1138,7 +1160,9 @@ smtp_do_init_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == INIT RCPT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == INIT RCPT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1210,14 +1234,15 @@ smtp_do_parse_cmd_helo(
 		char *err_msg = "incorrect domain argument";
 		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
 
-		return initial;
+		return s->state;
 	}
 
 	s->client.domain = strndup(domain, len);
 	if (s->client.domain == NULL)
 		abort();
 
-	slog_d("TEST: parse cmd helo: next state %s", SMTP_STATE_NAME(maybe_next));
+	slog_d("TEST: parse cmd helo: domain %s: next state %s",
+		s->client.domain, SMTP_STATE_NAME(maybe_next));
     return maybe_next;
 /*  END   == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1330,6 +1355,7 @@ smtp_do_parse_data_rcpt(
 /*  END   == PARSE DATA RCPT == DO NOT CHANGE THIS COMMENT  */
 }
 
+
 static te_smtp_state
 smtp_do_process_quit_ok(
     void *data,
@@ -1342,18 +1368,24 @@ smtp_do_process_quit_ok(
 /*  END   == PROCESS QUIT OK == DO NOT CHANGE THIS COMMENT  */
 }
 
-/*
+
 static te_smtp_state
 smtp_do_process_rset_ok(
     void *data,
     te_smtp_state initial,
     te_smtp_state maybe_next,
     te_smtp_event trans_evt )
-{*/
+{
 /*  START == PROCESS RSET OK == DO NOT CHANGE THIS COMMENT  */
-//    return maybe_next;
+	struct smtp_data *s = (struct smtp_data*)data;
+	char *msg = "OK";
+
+	smtp_data_reset(s);
+	SMTP_DATA_FORM_ANSWER(s, 250, msg);
+
+    return SMTP_ST_INIT;
 /*  END   == PROCESS RSET OK == DO NOT CHANGE THIS COMMENT  */
-//}
+}
 
 /*
 static te_smtp_state
@@ -1364,7 +1396,11 @@ smtp_do_process_verify_ok(
     te_smtp_event trans_evt )
 {*/
 /*  START == PROCESS VERIFY OK == DO NOT CHANGE THIS COMMENT  */
-//    return maybe_next;
+//	char *err_msg = "Access denied to you";
+//	struct smtp_data *s = (struct smtp_data *)data;
+//	SMTP_DATA_FORM_ANSWER(s, 550, err_msg);
+
+  //  return s->state;
 /*  END   == PROCESS VERIFY OK == DO NOT CHANGE THIS COMMENT  */
 //}
 
@@ -1512,18 +1548,22 @@ smtp_do_rcpt_middle_rcpt(
 /*  END   == RCPT MIDDLE RCPT == DO NOT CHANGE THIS COMMENT  */
 }
 
-/*
+
 static te_smtp_state
 smtp_do_seq_err_ok(
     void *data,
     te_smtp_state initial,
     te_smtp_state maybe_next,
     te_smtp_event trans_evt )
-{*/
+{
 /*  START == SEQ ERR OK == DO NOT CHANGE THIS COMMENT  */
-//    return maybe_next;
+	char *err_msg = "Bad sequence of commands";
+	struct smtp_data *s = (struct smtp_data *)data;
+	SMTP_DATA_FORM_ANSWER(s, 503, err_msg);
+
+    return s->state;
 /*  END   == SEQ ERR OK == DO NOT CHANGE THIS COMMENT  */
-//}
+}
 
 /*
 static te_smtp_state

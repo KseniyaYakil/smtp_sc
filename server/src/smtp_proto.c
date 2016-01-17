@@ -118,6 +118,21 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 	SMTP_DATA_FORM_ANSWER(s_data, 220, info);
 }
 
+void smtp_data_reset(struct smtp_data *s_data)
+{
+	s_data->cur_cmd = SMTP_CMD_EMPTY;
+
+	s_data->client.data = NULL;
+	s_data->client.len = 0;
+	if (s_data->client.domain != NULL) {
+		free(s_data->client.domain);
+		s_data->client.domain = NULL;
+	}
+
+	s_data->answer.ret = 0;
+	s_data->answer.ret_msg_len = 0;
+}
+
 void smtp_data_destroy(struct smtp_data *s_data)
 {
 	if (s_data->client.domain != NULL)
@@ -156,6 +171,9 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 
 	if (s_data->state == SMTP_ST_ST_ERR)
 		return -1;
+
+	if (s_data->state == SMTP_ST_DONE)
+		return 1;
 
 	return 0;
 }

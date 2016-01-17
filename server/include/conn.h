@@ -8,9 +8,10 @@
 #define MAX_CONN_CNT	MAX_CLIENTS * 2
 
 enum conn_status {
-	CON_STATUS_EMPTY = 0,
-	CON_STATUS_ENABLED = 1,
-	CON_STATUS_CLOSING = 2
+	CON_STATUS_EMPTY =		0,
+	CON_STATUS_ENABLED =		1,
+	CON_STATUS_CLOSING =		2,
+	CON_STATUS_WRITE_BEFORE_CLOSE = 3,
 };
 
 struct conn {
@@ -20,6 +21,9 @@ struct conn {
 
 	struct buf read; // read data from client
 	struct buf write; // write data to client
+
+	// TODO: change to timeout
+	int attempts;
 };
 
 int run_server();

@@ -64,11 +64,16 @@ struct conn *conn_get_new(uint32_t fd_index)
 // MUST call only once for each conn
 void conn_close(struct conn *conn)
 {
+	static int write_before_close_cnt = 32;
 	assert(conn != NULL);
 
 	slog_d("conn close %"PRIu32" was called", conn->id);
 	if (conn->status == CON_STATUS_ENABLED) {
-		conn->status = CON_STATUS_CLOSING;
+		if (buf_get_len(&conn->write) != 0) {
+			conn->status = CON_STATUS_WRITE_BEFORE_CLOSE;
+			conn->attempts = write_before_close_cnt;
+		} else
+			conn->status = CON_STATUS_CLOSING;
 		return;
 	}
 
@@ -102,16 +107,25 @@ void conn_close_all(struct pollfd *fds, uint32_t cnt)
 			conn_free(conns[i]);
 			conns[i] = NULL;
 		}
+
+		if (conns[i] != NULL &&
+		    conns[i]->status == CON_STATUS_WRITE_BEFORE_CLOSE) {
+			if (conns[i]->attempts == 0) {
+				conns[i]->status = CON_STATUS_CLOSING;
+			} else
+				conns[i]->attempts--;
+		}
 	}
 }
 
-struct conn *conn_get_enabled(uint32_t index)
+struct conn *conn_get_enabled(uint32_t index, bool write_enabled)
 {
 	struct conn *conn = NULL;
 	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
 		if (conns[i] != NULL &&
 		    conns[i]->fd_index == index &&
-		    conns[i]->status == CON_STATUS_ENABLED) {
+		    (conns[i]->status == CON_STATUS_ENABLED ||
+		     (write_enabled == true && conns[i]->status == CON_STATUS_WRITE_BEFORE_CLOSE))) {
 			conn = conns[i];
 			break;
 		}
@@ -123,7 +137,7 @@ struct conn *conn_get_enabled(uint32_t index)
 // XXX: server worker MUST free buf
 struct conn *conn_append_to_read_buf(uint32_t index, const char *data, uint32_t len)
 {
-	struct conn *conn = conn_get_enabled(index);
+	struct conn *conn = conn_get_enabled(index, false);
 	if (conn == NULL)
 		return NULL;
 
@@ -246,7 +260,7 @@ static int run_server_loop(int listen_fd)
 			if (fds[i].revents & POLLHUP) {
 				slog_i("client has gone (%d)", fds[i].fd);
 
-				struct conn *conn = conn_get_enabled(i);
+				struct conn *conn = conn_get_enabled(i, true);
 				if (conn != NULL);
 					thpool_add_work(thpool, (void*)worker_close, conn);
 
@@ -291,18 +305,22 @@ static int run_server_loop(int listen_fd)
 				} while (false);
 
 				if (close_conn == true) {
-					struct conn *conn = conn_get_enabled(i);
-					if (conn != NULL)
-						thpool_add_work(thpool, (void*)worker_close, conn);
-
-					fds[i].events = 0;
+					struct conn *conn = conn_get_enabled(i, true);
+					if (conn != NULL) {
+						if (conn->status != CON_STATUS_WRITE_BEFORE_CLOSE) {
+							thpool_add_work(thpool, (void*)worker_close, conn);
+							fds[i].events = 0;
+						}
+					} else {
+						fds[i].events = 0;
+					}
 				}
 
 				continue;
 			}
 
 			if (fds[i].revents & POLLOUT) {
-				struct conn *conn = conn_get_enabled(i);
+				struct conn *conn = conn_get_enabled(i, true);
 				if (conn == NULL) {
 					slog_e("%s", "POLLOUT event but no conn");
 					continue;
@@ -310,13 +328,15 @@ static int run_server_loop(int listen_fd)
 
 				slog_d("write data from %d: %.*s", fds[i].fd, conn->write.len, conn->write.data);
 
-				int rc = send(fds[i].fd, conn->write.data, conn->write.len, 0);
-				buf_reset(&conn->write);
+				if (conn->write.len != 0) {
+					int rc = send(fds[i].fd, conn->write.data, conn->write.len, 0);
+					buf_reset(&conn->write);
+					conn->attempts = 0;
 
-				if (rc < 0) {
-					slog_e("%s", "send() failed");
-
-					thpool_add_work(thpool, (void*)worker_close, conn);
+					if (rc < 0) {
+						slog_e("%s", "send() failed");
+						thpool_add_work(thpool, (void*)worker_close, conn);
+					}
 				}
 
 				fds[i].events &= ~POLLOUT;

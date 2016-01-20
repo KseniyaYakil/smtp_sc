@@ -24,14 +24,14 @@
 #define REVERSE_PATH	PATH
 #define FORWARD_PATH	PATH
 
-// TODO: SP + CRLF/ local part not fully implemented
+// TODO: local part not fully implemented
 struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 	[SMTP_CMD_HELO] = {
 		.cmd = "HELO",
 		.cmd_len = sizeof("HELO") - 1,
 		.evt = SMTP_EV_HELO,
 		.re = {
-			.str = "("DOMAIN")"
+			.str = "^"SP"("DOMAIN")"CRLF
 		}
 	},
 	[SMTP_CMD_EHLO] = {
@@ -39,7 +39,7 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd_len = sizeof("EHLO") - 1,
 		.evt = SMTP_EV_EHLO,
 		.re = {
-			.str = "("DOMAIN")"
+			.str = "^"SP"("DOMAIN")"CRLF
 		}
 	},
 	[SMTP_CMD_MAIL] = {
@@ -47,7 +47,7 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd_len = sizeof("MAIL") - 1,
 		.evt = SMTP_EV_MAIL,
 		.re = {
-			.str = "^"SP"FROM\\:("REVERSE_PATH")"
+			.str = "^"SP"FROM\\:("REVERSE_PATH")"CRLF
 		}
 	},
 	[SMTP_CMD_DATA] = {
@@ -60,7 +60,7 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd_len = sizeof("RCPT") - 1,
 		.evt = SMTP_EV_RCPT,
 		.re = {
-			.str = "^"SP"TO\\:("FORWARD_PATH")"
+			.str = "^"SP"TO\\:("FORWARD_PATH")"CRLF
 		}
 	},
 	[SMTP_CMD_RSET] = {
@@ -89,7 +89,6 @@ static void smtp_data_internal_init(void)
 		const char *err;
 		int err_off;
 
-		// TODO: determine all and remore this check
 		if (r->str == NULL)
 			continue;
 

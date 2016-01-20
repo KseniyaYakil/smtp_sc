@@ -439,8 +439,8 @@ static const char *cmd_parse(pcre *re, const char *data, int data_len, int *len)
 
 	int rc = pcre_exec(re, 0, data, (int)data_len, 0, 0, ovec, ovecsize);
 
-	int off = ovec[0];
-	*len = ovec[1] - ovec[0];
+	int off = ovec[2];
+	*len = ovec[3] - ovec[2];
 	if (rc < 0) {
 		slog_e("Invalid command came, data == '%.*s'", (int)data_len, data);
 		*len = -1;

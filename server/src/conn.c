@@ -151,8 +151,27 @@ int conn_append_to_write_buf(struct conn *conn, const char *data, uint32_t len)
 	assert(conn != NULL && conn->status == CON_STATUS_ENABLED);
 	buf_append(&(conn->write), data, len);
 
-	fds[conn->fd_index].events |= POLLOUT;
+	int rc = send(fds[conn->fd_index].fd, conn->write.data,
+		      conn->write.len, MSG_DONTWAIT);
 
+	if (rc < 0) {
+		if (errno == EAGAIN ||
+		    errno == EWOULDBLOCK) {
+			fds[conn->fd_index].events |= POLLOUT;
+			return 0;
+		}
+
+		return -1;
+	}
+
+	if (rc < buf_get_len(&(conn->write))) {
+		buf_move(&(conn->write), rc);
+
+		fds[conn->fd_index].events |= POLLOUT;
+		return 0;
+	}
+
+	buf_reset(&conn->write);
 	return 0;
 }
 
@@ -315,8 +334,6 @@ static int run_server_loop(int listen_fd)
 						fds[i].events = 0;
 					}
 				}
-
-				continue;
 			}
 
 			if (fds[i].revents & POLLOUT) {

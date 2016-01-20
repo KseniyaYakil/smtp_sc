@@ -101,4 +101,15 @@ int buf_copy(struct buf *buf, char **data_p, uint32_t *len)
 	return 0;
 }
 
+void buf_move(struct buf *buf, int cnt)
+{
+	if (buf->len < cnt)
+		return;
+
+	if (buf->len == cnt)
+		return buf_reset(buf);
+
+	memmove(buf->data, buf->data + cnt, buf->len - cnt);
+}
+
 

@@ -9,6 +9,7 @@
 
 #define SMTP_RET_MSG_LEN	1024
 #define SMTP_CMD_MIN_LEN	4
+#define SMTP_RCPT_CNT_MAX	32
 
 enum smtp_cmd {
 	SMTP_CMD_EMPTY,
@@ -35,6 +36,8 @@ struct smtp_data {
 		int len;
 		char *domain;
 		char *from;
+		char *rcpt[SMTP_RCPT_CNT_MAX];
+		uint8_t rcpt_cnt;
 	} client;
 
 	struct smtp_msg {
@@ -74,6 +77,7 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg);
 void smtp_data_reset(struct smtp_data *s_data);
 
 void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len);
+int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len);
 
 #endif
 

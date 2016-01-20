@@ -1008,6 +1008,10 @@ smtp_do_data_wait_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == DATA WAIT DATA RCV == DO NOT CHANGE THIS COMMENT  */
+	// 354 Start mail input; end with <CRLF>.<CRLF>
+	// rergerg
+	// <crlf>.<crlf>
+	// 250 OK
     return maybe_next;
 /*  END   == DATA WAIT DATA RCV == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1304,6 +1308,32 @@ smtp_do_parse_cmd_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD RCPT == DO NOT CHANGE THIS COMMENT  */
+	slog_d("%s", "TEST: parse cmd rcpt");
+
+	struct smtp_data *s = (struct smtp_data*)data;
+	const char *forward_path = s->client.data;
+	int len = s->client.len;
+
+	te_smtp_event evt = parse_cmd_internal(s, &forward_path, &len);
+
+	if (evt == SMTP_EV_ERR) {
+		char *err_msg = "incorrect `forward-path' argument";
+		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+
+		return s->state;
+	}
+
+	slog_d("add rcpt %s", forward_path);
+	if (smtp_data_add_rcpt(s, forward_path, len) != 0) {
+		char *err_msg = "Too many recipients";
+		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+
+		return s->state;
+	}
+
+	slog_d("TEST: parse cmd rcpt: forward %s: next state %s",
+		forward_path, SMTP_STATE_NAME(maybe_next));
+
     return maybe_next;
 /*  END   == PARSE CMD RCPT == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1449,7 +1479,8 @@ smtp_do_rcpt_begin_data(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN DATA == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == RCPT BEGIN DATA == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1461,7 +1492,8 @@ smtp_do_rcpt_begin_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN DATA RCV == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == RCPT BEGIN DATA RCV == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1473,7 +1505,8 @@ smtp_do_rcpt_begin_ehlo(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN EHLO == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == RCPT BEGIN EHLO == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1485,7 +1518,8 @@ smtp_do_rcpt_begin_helo(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN HELO == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == RCPT BEGIN HELO == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1497,7 +1531,8 @@ smtp_do_rcpt_begin_mail(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN MAIL == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == RCPT BEGIN MAIL == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1509,7 +1544,23 @@ smtp_do_rcpt_begin_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN RCPT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	slog_d("TEST: do rcp begin rcp: initial %s trans %s next %s",
+		SMTP_STATE_NAME(initial),
+		SMTP_EVT_NAME(trans_evt),
+		SMTP_STATE_NAME(maybe_next));
+
+	struct smtp_data *s = (struct smtp_data *)data;
+	s->answer.ret_msg_len = 0;
+
+	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
+
+	slog_d("TEST: rcpt begin msg len %d", s->answer.ret_msg_len);
+	if (s->answer.ret_msg_len == 0)
+		SMTP_DATA_FORM_ANSWER(s, 250, "OK");
+
+	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+
+    return next;
 /*  END   == RCPT BEGIN RCPT == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1521,6 +1572,13 @@ smtp_do_rcpt_middle_data(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE DATA == DO NOT CHANGE THIS COMMENT  */
+	slog_d("TEST: do rcp middle data: initial %s trans %s next %s",
+		SMTP_STATE_NAME(initial),
+		SMTP_EVT_NAME(trans_evt),
+		SMTP_STATE_NAME(maybe_next));
+	maybe_next = SMTP_ST_RCPT_MIDDLE;
+
+
     return maybe_next;
 /*  END   == RCPT MIDDLE DATA == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1533,6 +1591,7 @@ smtp_do_rcpt_middle_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE DATA RCV == DO NOT CHANGE THIS COMMENT  */
+	maybe_next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
     return maybe_next;
 /*  END   == RCPT MIDDLE DATA RCV == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1545,6 +1604,7 @@ smtp_do_rcpt_middle_ehlo(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE EHLO == DO NOT CHANGE THIS COMMENT  */
+	maybe_next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
     return maybe_next;
 /*  END   == RCPT MIDDLE EHLO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1557,6 +1617,7 @@ smtp_do_rcpt_middle_helo(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE HELO == DO NOT CHANGE THIS COMMENT  */
+	maybe_next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
     return maybe_next;
 /*  END   == RCPT MIDDLE HELO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1569,6 +1630,7 @@ smtp_do_rcpt_middle_mail(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE MAIL == DO NOT CHANGE THIS COMMENT  */
+	maybe_next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
     return maybe_next;
 /*  END   == RCPT MIDDLE MAIL == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1581,10 +1643,10 @@ smtp_do_rcpt_middle_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE RCPT == DO NOT CHANGE THIS COMMENT  */
+	maybe_next = smtp_step(SMTP_ST_RCPT_BEGIN, trans_evt, data);
     return maybe_next;
 /*  END   == RCPT MIDDLE RCPT == DO NOT CHANGE THIS COMMENT  */
 }
-
 
 static te_smtp_state
 smtp_do_seq_err_ok(

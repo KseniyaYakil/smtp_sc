@@ -22,6 +22,7 @@
 #define ADL		"(?:"AT_DOMAIN")(?:,"AT_DOMAIN")*"
 #define PATH		"\\<(?:"ADL"\\:)?(?:"MAILBOX")\\>"
 #define REVERSE_PATH	PATH
+#define FORWARD_PATH	PATH
 
 // TODO: SP + CRLF/ local part not fully implemented
 struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
@@ -58,6 +59,9 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd = "RCPT",
 		.cmd_len = sizeof("RCPT") - 1,
 		.evt = SMTP_EV_RCPT,
+		.re = {
+			.str = "^"SP"TO\\:("FORWARD_PATH")"
+		}
 	},
 	[SMTP_CMD_RSET] = {
 		.cmd = "RSET",
@@ -138,21 +142,6 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 	SMTP_DATA_FORM_ANSWER(s_data, 220, info);
 }
 
-void smtp_data_reset(struct smtp_data *s_data)
-{
-	s_data->cur_cmd = SMTP_CMD_EMPTY;
-
-	s_data->client.data = NULL;
-	s_data->client.len = 0;
-	if (s_data->client.domain != NULL) {
-		free(s_data->client.domain);
-		s_data->client.domain = NULL;
-	}
-
-	s_data->answer.ret = 0;
-	s_data->answer.ret_msg_len = 0;
-}
-
 void smtp_data_destroy(struct smtp_data *s_data)
 {
 	if (s_data->client.domain != NULL)
@@ -160,6 +149,22 @@ void smtp_data_destroy(struct smtp_data *s_data)
 
 	if (s_data->client.from != NULL)
 		free(s_data->client.from);
+
+	for (uint8_t i = 0; i < s_data->client.rcpt_cnt; i++) {
+		free(s_data->client.rcpt[i]);
+	}
+	s_data->client.rcpt_cnt = 0;
+}
+
+void smtp_data_reset(struct smtp_data *s_data)
+{
+	smtp_data_destroy(s_data);
+
+	*s_data = (struct smtp_data) {
+		.state = SMTP_ST_INIT,
+		.name = s_data->name,
+		.cur_cmd = SMTP_CMD_EMPTY
+	};
 }
 
 void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len)
@@ -168,6 +173,20 @@ void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len)
 		free(s_data->client.from);
 
 	s_data->client.from = strndup(from, len);
+}
+
+// TODO: separate client struct and functions
+int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len)
+{
+	uint8_t cur_cnt = s_data->client.rcpt_cnt;
+
+	if (cur_cnt == SMTP_RCPT_CNT_MAX)
+		return -1;
+
+	s_data->client.rcpt[cur_cnt] = strndup(rcpt, len);
+	s_data->client.rcpt_cnt++;
+
+	return 0;
 }
 
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg)

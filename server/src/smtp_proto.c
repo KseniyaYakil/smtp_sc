@@ -3,16 +3,27 @@
 #include <assert.h>
 #include <pcre.h>
 
-#define NUMBER		"(?:\\d+)"
-#define SNUM		"(?:\\d{1,3})"
-#define DOTNUM		"(?:"SNUM"\\."SNUM"\\."SNUM"\\."SNUM")"
-#define NAME		"(?:[a-zA-Z][a-zA-Z\\d\\-]*[a-zA-Z\\d])"
-#define ELEMENT		"(?:"NAME"|(?:#"NUMBER")|(?:\\["DOTNUM"\\]))"
-#define DOMAIN		"(?:"ELEMENT"(?:\\."ELEMENT")*)"
+#define NUMBER		"\\d+"
+#define SNUM		"\\d{1,3}"
+#define DOTNUM		""SNUM"\\."SNUM"\\."SNUM"\\."SNUM""
+#define NAME		"[a-zA-Z][a-zA-Z\\d\\-]*[a-zA-Z\\d]"
+#define ELEMENT		"(?:"NAME")|(?:#"NUMBER")|(?:\\["DOTNUM"\\])"
+#define DOMAIN		"(?:"ELEMENT")(?:\\."ELEMENT")*"
 #define SP		" "
 #define CRLF		"\r\n"
 
-// TODO: SP + CRLF
+#define ASCII_CHAR	"[\\x00-\\x19\\x21-\\x7F]"
+#define CHAR		ASCII_CHAR
+#define STR		"(?:"CHAR"+)"
+#define DOT_STRING	"(?:"STR")|(?:\\."STR")*"
+#define LOCAL_PART	"(?:"DOT_STRING")"
+#define MAILBOX		"(?:"LOCAL_PART")@(?:"DOMAIN")"
+#define AT_DOMAIN	"@"DOMAIN""
+#define ADL		"(?:"AT_DOMAIN")(?:,"AT_DOMAIN")*"
+#define PATH		"\\<(?:"ADL"\\:)?(?:"MAILBOX")\\>"
+#define REVERSE_PATH	PATH
+
+// TODO: SP + CRLF/ local part not fully implemented
 struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 	[SMTP_CMD_HELO] = {
 		.cmd = "HELO",
@@ -34,6 +45,9 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd = "MAIL",
 		.cmd_len = sizeof("MAIL") - 1,
 		.evt = SMTP_EV_MAIL,
+		.re = {
+			.str = "^"SP"FROM\\:("REVERSE_PATH")"
+		}
 	},
 	[SMTP_CMD_DATA] = {
 		.cmd = "DATA",
@@ -143,6 +157,17 @@ void smtp_data_destroy(struct smtp_data *s_data)
 {
 	if (s_data->client.domain != NULL)
 		free(s_data->client.domain);
+
+	if (s_data->client.from != NULL)
+		free(s_data->client.from);
+}
+
+void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len)
+{
+	if (s_data->client.from != NULL)
+		free(s_data->client.from);
+
+	s_data->client.from = strndup(from, len);
 }
 
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg)

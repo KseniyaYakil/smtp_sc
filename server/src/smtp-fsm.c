@@ -1272,6 +1272,26 @@ smtp_do_parse_cmd_mail(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD MAIL == DO NOT CHANGE THIS COMMENT  */
+	slog_d("%s", "TEST: parse cmd MAIL");
+
+	struct smtp_data *s = (struct smtp_data*)data;
+	const char *reverse_path = s->client.data;
+	int len = s->client.len;
+
+	te_smtp_event evt = parse_cmd_internal(s, &reverse_path, &len);
+
+	if (evt == SMTP_EV_ERR) {
+		char *err_msg = "incorrect `reverse-path' argument";
+		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+
+		return s->state;
+	}
+
+	smtp_data_store_from(s, reverse_path, len);
+
+	slog_d("TEST: parse cmd mail: reverse path %s: next state %s",
+		reverse_path, SMTP_STATE_NAME(maybe_next));
+
     return maybe_next;
 /*  END   == PARSE CMD MAIL == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1628,7 +1648,8 @@ smtp_do_trans_begin_data(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN DATA == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == TRANS BEGIN DATA == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1640,7 +1661,8 @@ smtp_do_trans_begin_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN DATA RCV == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == TRANS BEGIN DATA RCV == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1652,7 +1674,8 @@ smtp_do_trans_begin_ehlo(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN EHLO == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == TRANS BEGIN EHLO == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1664,7 +1687,8 @@ smtp_do_trans_begin_helo(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN HELO == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == TRANS BEGIN HELO == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1676,7 +1700,23 @@ smtp_do_trans_begin_mail(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN MAIL == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	slog_d("TEST: do trans mail: initial %s trans %s next %s",
+		SMTP_STATE_NAME(initial),
+		SMTP_EVT_NAME(trans_evt),
+		SMTP_STATE_NAME(maybe_next));
+
+	struct smtp_data *s = (struct smtp_data *)data;
+	s->answer.ret_msg_len = 0;
+
+	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
+
+	slog_d("TEST: trans mail msg len %d", s->answer.ret_msg_len);
+	if (s->answer.ret_msg_len == 0)
+		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
+
+	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+
+    return next;
 /*  END   == TRANS BEGIN MAIL == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1688,7 +1728,8 @@ smtp_do_trans_begin_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN RCPT == DO NOT CHANGE THIS COMMENT  */
-    return maybe_next;
+	te_smtp_state next = smtp_step(SMTP_ST_SEQ_ERR, SMTP_EV_OK, data);
+    return next;
 /*  END   == TRANS BEGIN RCPT == DO NOT CHANGE THIS COMMENT  */
 }
 

@@ -34,6 +34,7 @@ struct smtp_data {
 		const char *data; // from client
 		int len;
 		char *domain;
+		char *from;
 	} client;
 
 	struct smtp_msg {
@@ -71,6 +72,8 @@ void smtp_data_init(struct smtp_data *s_data, const char *name);
 void smtp_data_destroy(struct smtp_data *s_data);
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg);
 void smtp_data_reset(struct smtp_data *s_data);
+
+void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len);
 
 #endif
 

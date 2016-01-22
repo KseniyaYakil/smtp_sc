@@ -123,10 +123,7 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 			continue;
 
 		if (memcmp(smtp_cmd_arr[i].cmd, cmd, smtp_cmd_arr[i].cmd_len) == 0) {
-			if (i == SMTP_CMD_EHLO) {
-				smtp_cmd = SMTP_CMD_HELO;
-			} else
-				smtp_cmd = i;
+			smtp_cmd = i;
 			break;
 		}
 	}

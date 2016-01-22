@@ -1145,13 +1145,39 @@ smtp_do_init_ehlo(
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
 	slog_d("TEST: init_ehlo msg len %d", s->answer.ret_msg_len);
-	if (s->answer.ret_msg_len == 0)
-		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
+	if (s->answer.ret_msg_len == 0) {
+		char *msg = &s->answer.ret_msg[0];
+		int len = sizeof(s->answer.ret_msg);
+		s->answer.ret = 250;
+
+		int cnt = snprintf(msg, len, "%s Ready to serve\r\n", s->name);
+
+		if (cnt <= 0)
+			abort();
+
+		msg += cnt;
+		len -= cnt;
+
+		cnt = snprintf(msg, len, "%d 8BITMIME\r\n", 250);
+		if (cnt <= 0)
+			abort();
+
+		msg += cnt;
+		len -= cnt;
+
+		cnt = snprintf(msg, len, "%d SIZE %d\r\n", 250, SMTP_MSG_MAX_SIZE);
+
+		if (cnt <= 0)
+			abort();
+
+		msg += cnt;
+		len -= cnt;
+
+		s->answer.ret_msg_len = sizeof(s->answer.ret_msg) - len;
+	}
 
 	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
     return next;
-
-    return maybe_next;
 /*  END   == INIT EHLO == DO NOT CHANGE THIS COMMENT  */
 }
 

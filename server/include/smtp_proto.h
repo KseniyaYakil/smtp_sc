@@ -10,10 +10,12 @@
 
 #define SMTP_RET_MSG_LEN	1024
 #define SMTP_CMD_MIN_LEN	4
+#define SMTP_MSG_MAX_SIZE	4096
 
 #define CRLF		"\r\n"
 #define DATA_EOF	CRLF"\\."CRLF
 
+// TODO: limit body buf according to max size
 enum smtp_cmd {
 	SMTP_CMD_EMPTY,
 	SMTP_CMD_HELO,

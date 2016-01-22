@@ -174,6 +174,5 @@ int email_store(struct email *e, const char *path)
 				    &e->hdrs[EMAIL_MSG_HDR_FROM]) != 0)
 		return -1;
 
-	// TODO: add detecting of Subject
 	return email_write_to_file(e, path);
 }

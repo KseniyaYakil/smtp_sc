@@ -16,7 +16,7 @@ static void worker_internal_init(void)
 {
 	const char *err;
 	int err_off;
-	char *str_eof_line = "(.+?)"CRLF;
+	char *str_eof_line = "^((?:.+?"CRLF")|("CRLF"))";
 
 	eof_line = pcre_compile(str_eof_line, PCRE_CASELESS, &err, &err_off, NULL);
 	if (eof_line == NULL) {
@@ -139,9 +139,10 @@ static void worker_get_line(struct conn *conn, struct buf *msg)
 	if (line_len == 0)
 		return;
 
-	buf_append(msg, line, line_len + sizeof(CRLF) - 1);
+	buf_append(msg, line, line_len);
 
-	buf_move(read_buf, line_len + sizeof(CRLF) - 1);
+	buf_move(read_buf, line_len);
+	slog_d("read buf : %.*s", read_buf->len, read_buf->data);
 }
 
 void worker_process(struct conn *conn)
@@ -178,6 +179,9 @@ void worker_process(struct conn *conn)
 	}
 
 	worker_send_answer(s);
+
+	if (conn->read.len != 0)
+		worker_process(conn);
 }
 
 void worker_close(struct conn *conn)

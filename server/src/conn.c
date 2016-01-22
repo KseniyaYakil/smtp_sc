@@ -27,7 +27,7 @@ static threadpool thpool;
 static struct conn *conns[MAX_CONN_CNT];
 static struct pollfd fds[MAX_CLIENTS];
 
-struct conn *conn_new(uint32_t fd_index)
+struct conn *conn_new(uint32_t fd_index, char *ip)
 {
 	static uint32_t id = 0;
 	const uint32_t prealloc = 128;
@@ -40,15 +40,17 @@ struct conn *conn_new(uint32_t fd_index)
 	buf_init(&conn->read, prealloc);
 	buf_init(&conn->write, prealloc);
 
+	memcpy(conn->ip, ip, INET_ADDRSTRLEN);
+
 	return conn;
 }
 
-struct conn *conn_get_new(uint32_t fd_index)
+struct conn *conn_get_new(uint32_t fd_index, char *ip)
 {
 	struct conn *conn = NULL;
 	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
 		if (conns[i] == NULL) {
-			conn = conn_new(fd_index);
+			conn = conn_new(fd_index, ip);
 			assert(conn != NULL);
 			conns[i] = conn;
 			slog_d("create new conn %"PRIu32, conn->id);
@@ -248,7 +250,14 @@ static int run_server_loop(int listen_fd)
 			if (fds[i].fd == listen_fd) {
 				int new_fd = 0;
 				while (new_fd != -1) {
-					new_fd = accept(listen_fd, NULL, NULL);
+					struct sockaddr client_addr;
+					struct sockaddr_in* addr_v4;
+					char client_ip[INET_ADDRSTRLEN];
+
+					memset(&client_addr, 0, sizeof(struct sockaddr));
+					socklen_t address_len = sizeof(client_addr);
+
+					new_fd = accept(listen_fd, &client_addr, &address_len);
 					if (new_fd < 0) {
 						if (errno != EWOULDBLOCK) {
 							slog_e("accept() failed: %s", strerror(errno));
@@ -258,6 +267,9 @@ static int run_server_loop(int listen_fd)
 					}
 
 					slog_i("new client %d", new_fd);
+					addr_v4 = (struct sockaddr_in*) &client_addr;
+					inet_ntop( AF_INET, &addr_v4->sin_addr.s_addr, client_ip, INET_ADDRSTRLEN );
+
 					for (uint32_t f = 1; f < MAX_FD_CNT; f++) {
 						if (fds[f].fd != 0)
 							continue;
@@ -268,7 +280,7 @@ static int run_server_loop(int listen_fd)
 							.revents = 0
 						};
 
-						struct conn *conn = conn_get_new(f);
+						struct conn *conn = conn_get_new(f, client_ip);
 						assert(conn != NULL);
 
 						slog_d("%s", "server: add work to worker on new client");

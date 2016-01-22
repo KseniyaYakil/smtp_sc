@@ -40,11 +40,12 @@
 #include "smtp-fsm.h"
 #include "smtp_proto.h"
 
+#include <netinet/in.h>
+#include <arpa/inet.h>
 #include <assert.h>
 #include <ctype.h>
 #include <pcre.h>
 #include <stdio.h>
-
 /*
  *  Do not make changes to this file, except between the START/END
  *  comments, or it will be removed the next time it is generated.
@@ -1295,6 +1296,29 @@ smtp_do_parse_cmd_helo(
 /*  END   == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
 }
 
+static const char *get_host_of_client_ip(struct smtp_data *s)
+{
+        struct sockaddr structSockAddr;
+        memset(&structSockAddr, 0, sizeof(structSockAddr));
+
+        const char *client_ip = s->client.ip;
+
+        struct in_addr in;
+        if (inet_aton( client_ip, &in ) != 1) {
+                slog_e("can't conver ip to internal struct: %s", strerror(errno));
+                return NULL;
+        }
+
+        struct hostent *hp = gethostbyaddr((char*)&in.s_addr, sizeof(in.s_addr), AF_INET);
+        if (!hp) {
+                slog_e("can't do reverse lookup of client ip '%s'", client_ip);
+                return NULL;
+        }
+
+        slog_i("ip -> hostname: %s -> %s", client_ip, hp->h_name);
+        return strdup(hp->h_name);
+}
+
 static te_smtp_state
 smtp_do_parse_cmd_mail(
     void *data,
@@ -1314,6 +1338,27 @@ smtp_do_parse_cmd_mail(
 	if (evt == SMTP_EV_ERR) {
 		char *err_msg = "incorrect `reverse-path' argument";
 		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+
+		return s->state;
+	}
+
+	const char *hostname = get_host_of_client_ip(s);
+	char *domain = strrchr(reverse_path, '@');
+	assert(domain != NULL);
+	domain += 1;
+
+	printf("domain %s host %s\n", domain, hostname);
+
+	if (hostname == NULL) {
+		char *err_msg = "unable to reverse lookup for your dns";
+		SMTP_DATA_FORM_ANSWER(s, 550, err_msg);
+
+		return s->state;
+	}
+
+	if (strncmp(hostname, domain, strlen(hostname)) != 0) {
+		char *err_msg = "domain and hostname missmatch";
+		SMTP_DATA_FORM_ANSWER(s, 550, err_msg);
 
 		return s->state;
 	}

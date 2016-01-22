@@ -7,6 +7,8 @@
 #include "smtp-fsm.h"
 
 #include <pcre.h>
+#include <netdb.h>
+#include <sys/socket.h>
 
 #define SMTP_RET_MSG_LEN	1024
 #define SMTP_CMD_MIN_LEN	4
@@ -42,6 +44,7 @@ struct smtp_data {
 
 		char *domain;
 		struct email email;
+		const char *ip;
 	} client;
 
 	struct smtp_msg {
@@ -76,7 +79,7 @@ struct smtp_cmd_info {
 extern struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST];
 extern pcre *data_eof_re;
 
-void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir);
+void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir, const char *ip);
 void smtp_data_destroy(struct smtp_data *s_data);
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg);
 void smtp_data_reset(struct smtp_data *s_data);

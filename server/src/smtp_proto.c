@@ -129,12 +129,12 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 	return smtp_cmd;
 }
 
-void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir)
+void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir, const char *ip)
 {
 	*s_data = (struct smtp_data) {
 		.state = SMTP_ST_INIT,
 		.name = name,
-		.mail_dir = mail_dir
+		.mail_dir = mail_dir,
 	};
 
 	email_init(&s_data->client.email, 0);
@@ -144,6 +144,8 @@ void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail
 	int len = snprintf(info, sizeof(info), "%s %s", name, msg);
 	if (len < 0)
 		abort();
+
+	s_data->client.ip = ip;
 
 	SMTP_DATA_FORM_ANSWER(s_data, 220, info);
 }

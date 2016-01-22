@@ -3,7 +3,11 @@
 
 #include "buf.h"
 #include "server_types.h"
+
 #include <stdbool.h>
+#include <netdb.h>
+#include <sys/socket.h>
+
 
 #define MAX_CONN_CNT	MAX_CLIENTS * 2
 
@@ -17,6 +21,7 @@ enum conn_status {
 struct conn {
 	uint32_t id;
 	uint32_t fd_index;
+	char ip[INET_ADDRSTRLEN];
 	enum conn_status status;
 
 	struct buf read; // read data from client

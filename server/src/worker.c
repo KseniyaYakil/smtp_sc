@@ -34,7 +34,7 @@ static struct session *session_create(void *conn)
 
 	s->conn = conn;
 	s->id = id++;
-	smtp_data_init(&s->s_data, conf.hostname, conf.mail_dir);
+	smtp_data_init(&s->s_data, conf.hostname, conf.mail_dir, ((struct conn *)conn)->ip);
 
 	return s;
 }

@@ -449,7 +449,7 @@ static const char *cmd_parse(pcre *re, const char *data, int data_len, int *len)
 	}
 
 	if (*len == 0) {
-		slog_d("%s", "Empty addr found cmd");
+		slog_w("%s", "Empty addr found cmd");
 		return "";
 	}
 
@@ -461,7 +461,6 @@ static te_smtp_event parse_cmd_internal(struct smtp_data *s,
 					const char **data, int *len)
 {
 	struct smtp_cmd_info *info = &smtp_cmd_arr[s->cur_cmd];
-	slog_d("TEST: parse cmd : cmd %d", s->cur_cmd);
 
 	if (info->re.re == NULL)
 		return SMTP_EV_ERR;
@@ -471,11 +470,10 @@ static te_smtp_event parse_cmd_internal(struct smtp_data *s,
 		*len = 0;
 		*data = NULL;
 
-		slog_d("incorret args for cmd %d", s->cur_cmd);
+		slog_i("incorret args for cmd %d", s->cur_cmd);
 		return SMTP_EV_ERR;
 	}
 
-	slog_d("accepted cmd and args `%s'", args);
 	*data = args;
 
 	return SMTP_EV_OK;
@@ -646,7 +644,7 @@ smtp_do_PROCESS_QUIT_quit(
     te_smtp_event trans_evt )
 {
 /*  START == PROCESS QUIT QUIT == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: quit process");
+	slog_i("%s", "QUIT process");
 	struct smtp_data *s = (struct smtp_data*)data;
 	char *msg = "Service closing transmission channel";
 	char info[SMTP_RET_MSG_LEN];
@@ -754,7 +752,7 @@ smtp_do_PROCESS_VERIFY_vrfy(
     te_smtp_event trans_evt )
 {
 /*  START == PROCESS VERIFY VRFY == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: verify process");
+	slog_i("%s", "VERFY process");
 	char *err_msg = "Access denied to you";
 	struct smtp_data *s = (struct smtp_data *)data;
 	SMTP_DATA_FORM_ANSWER(s, 550, err_msg);
@@ -1013,23 +1011,17 @@ smtp_do_data_wait_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == DATA WAIT DATA RCV == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do wait data recv : initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "DATA process");
 
 	struct smtp_data *s = (struct smtp_data *)data;
 	s->answer.ret_msg_len = 0;
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_DATA, trans_evt, data);
 
-	if (next == SMTP_ST_STORE_MAIL) {
-		slog_d("%s", "TEST: need store email implementation");
+	if (next == SMTP_ST_STORE_MAIL)
 		next = smtp_step(SMTP_ST_STORE_MAIL, SMTP_EV_OK, data);
-	}
 
-	slog_d("TEST: wait data_recv  msg len %d", s->answer.ret_msg_len);
-	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+	slog_d("DATA: next state %s", SMTP_STATE_NAME(next));
     return next;
 
 /*  END   == DATA WAIT DATA RCV == DO NOT CHANGE THIS COMMENT  */
@@ -1134,17 +1126,13 @@ smtp_do_init_ehlo(
     te_smtp_event trans_evt )
 {
 /*  START == INIT EHLO == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do init ehlo: initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "EHLO process");
 
 	struct smtp_data *s = (struct smtp_data *)data;
 	s->answer.ret_msg_len = 0;
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
-	slog_d("TEST: init_ehlo msg len %d", s->answer.ret_msg_len);
 	if (s->answer.ret_msg_len == 0) {
 		char msg[1024];
 		int cnt = snprintf(msg, sizeof(msg),
@@ -1155,7 +1143,7 @@ smtp_do_init_ehlo(
 		SMTP_DATA_FORM_ANSWER(s, 250, msg);
 	}
 
-	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+	slog_d("EHLO: next state %s", SMTP_STATE_NAME(next));
     return next;
 /*  END   == INIT EHLO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1168,21 +1156,17 @@ smtp_do_init_helo(
     te_smtp_event trans_evt )
 {
 /*  START == INIT HELO == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do init helo: initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "HELO process");
 
 	struct smtp_data *s = (struct smtp_data *)data;
 	s->answer.ret_msg_len = 0;
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
-	slog_d("TEST: init_helo msg len %d", s->answer.ret_msg_len);
 	if (s->answer.ret_msg_len == 0)
 		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
 
-	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+	slog_d("HELO: next state %s", SMTP_STATE_NAME(next));
     return next;
 /*  END   == INIT HELO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1235,7 +1219,7 @@ smtp_do_parse_cmd_data(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD DATA == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: parse cmd data");
+	slog_i("%s", "parse cmd data");
 
 	struct smtp_data *s = (struct smtp_data*)data;
 	const char *cl_data = s->client.data;
@@ -1250,7 +1234,7 @@ smtp_do_parse_cmd_data(
 		return s->state;
 	}
 
-	slog_d("TEST: parse cmd data: next state %s",
+	slog_d("parse cmd data: next state %s",
 		SMTP_STATE_NAME(maybe_next));
     return maybe_next;
 /*  END   == PARSE CMD DATA == DO NOT CHANGE THIS COMMENT  */
@@ -1288,7 +1272,7 @@ smtp_do_parse_cmd_helo(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: parse cmd helo");
+	slog_d("%s", "parse cmd helo");
 
 	struct smtp_data *s = (struct smtp_data*)data;
 	const char *domain = s->client.data;
@@ -1307,8 +1291,7 @@ smtp_do_parse_cmd_helo(
 	if (s->client.domain == NULL)
 		abort();
 
-	slog_d("TEST: parse cmd helo: domain %s: next state %s",
-		s->client.domain, SMTP_STATE_NAME(maybe_next));
+	slog_d("parse cmd helo:  next state %s", SMTP_STATE_NAME(maybe_next));
     return maybe_next;
 /*  END   == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1321,7 +1304,7 @@ smtp_do_parse_cmd_mail(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD MAIL == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: parse cmd MAIL");
+	slog_d("%s", "parse cmd mail");
 
 	struct smtp_data *s = (struct smtp_data*)data;
 	const char *reverse_path = s->client.data;
@@ -1338,8 +1321,7 @@ smtp_do_parse_cmd_mail(
 
 	smtp_data_store_from(s, reverse_path, len);
 
-	slog_d("TEST: parse cmd mail: reverse path %s: next state %s",
-		reverse_path, SMTP_STATE_NAME(maybe_next));
+	slog_d("parse cmd mail: next state %s", SMTP_STATE_NAME(maybe_next));
 
     return maybe_next;
 /*  END   == PARSE CMD MAIL == DO NOT CHANGE THIS COMMENT  */
@@ -1353,7 +1335,7 @@ smtp_do_parse_cmd_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD RCPT == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: parse cmd rcpt");
+	slog_d("%s", "parse cmd rcpt");
 
 	struct smtp_data *s = (struct smtp_data*)data;
 	const char *forward_path = s->client.data;
@@ -1368,7 +1350,7 @@ smtp_do_parse_cmd_rcpt(
 		return s->state;
 	}
 
-	slog_d("add rcpt %s", forward_path);
+	slog_i("add rcpt %.*s", len, forward_path);
 	if (smtp_data_add_rcpt(s, forward_path, len) != 0) {
 		char *err_msg = "Too many recipients";
 		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
@@ -1376,8 +1358,7 @@ smtp_do_parse_cmd_rcpt(
 		return s->state;
 	}
 
-	slog_d("TEST: parse cmd rcpt: forward %s: next state %s",
-		forward_path, SMTP_STATE_NAME(maybe_next));
+	slog_d("parse cmd rcpt: next state %s", SMTP_STATE_NAME(maybe_next));
 
     return maybe_next;
 /*  END   == PARSE CMD RCPT == DO NOT CHANGE THIS COMMENT  */
@@ -1415,7 +1396,7 @@ smtp_do_parse_data_data_rcv(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE DATA DATA RCV == DO NOT CHANGE THIS COMMENT  */
-	slog_d("%s", "TEST: parse data data rcv");
+	slog_d("%s", "parse data data rcv");
 	int ovec[24];
 	int ovecsize = sizeof(ovec);
 	int off;
@@ -1435,7 +1416,7 @@ smtp_do_parse_data_data_rcv(
 		buf_append(&tmp, last_str, last_str_len);
 	buf_append(&tmp, cl_data, len);
 
-	slog_d("TEST: examine %.*s", tmp.len, tmp.data);
+	//slog_d("examine %.*s", tmp.len, tmp.data);
 	int rc = pcre_exec(data_eof_re, 0,
 			   buf_get_data(&tmp), (int)buf_get_len(&tmp),
 			   0, 0, ovec, ovecsize);
@@ -1460,11 +1441,10 @@ smtp_do_parse_data_data_rcv(
 	}
 
 	if (len != 0) {
-		slog_d("TEST: append off %.*s", len, cl_data);
+		slog_d("append data %.*s", len, cl_data);
 		if (smtp_data_append_email(s, cl_data, len) != 0) {
 			char *err_msg = "Unable to store email";
 			SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
-			// TODO: change state to QUIT?
 			return s->state;
 		}
 	}
@@ -1474,13 +1454,11 @@ smtp_do_parse_data_data_rcv(
 		len = ovec[5] - ovec[4];
 
 		if (len > 0) {
-			slog_d("%s","TEST: data_wait: recv end of email");
 			maybe_next = SMTP_ST_STORE_MAIL;
 		}
 	}
 
-	slog_d("TEST: parse cmd data rcv: next state %s",
-		SMTP_STATE_NAME(maybe_next));
+	slog_d("parse cmd data rcv: next state %s", SMTP_STATE_NAME(maybe_next));
 
     return maybe_next;
 /*  END   == PARSE DATA DATA RCV == DO NOT CHANGE THIS COMMENT  */
@@ -1659,21 +1637,17 @@ smtp_do_rcpt_begin_rcpt(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT BEGIN RCPT == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do rcp begin rcp: initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "RCPT got");
 
 	struct smtp_data *s = (struct smtp_data *)data;
 	s->answer.ret_msg_len = 0;
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
-	slog_d("TEST: rcpt begin msg len %d", s->answer.ret_msg_len);
 	if (s->answer.ret_msg_len == 0)
 		SMTP_DATA_FORM_ANSWER(s, 250, "OK");
 
-	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+	slog_d("RCPT begin: next state %s", SMTP_STATE_NAME(next));
 
     return next;
 /*  END   == RCPT BEGIN RCPT == DO NOT CHANGE THIS COMMENT  */
@@ -1687,22 +1661,18 @@ smtp_do_rcpt_middle_data(
     te_smtp_event trans_evt )
 {
 /*  START == RCPT MIDDLE DATA == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do rcp middle data: initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "RCPT middle");
 	struct smtp_data *s = (struct smtp_data *)data;
 	s->answer.ret_msg_len = 0;
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
-	slog_d("TEST: rcpt middle data msg len %d", s->answer.ret_msg_len);
 	if (s->answer.ret_msg_len == 0) {
 		const char *msg = "Start mail input; end with <CRLF>.<CRLF>";
 		SMTP_DATA_FORM_ANSWER(s, 354, msg);
 	}
 
-	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+	slog_d("RCPT middle: next state %s", SMTP_STATE_NAME(next));
 
     return next;
 /*  END   == RCPT MIDDLE DATA == DO NOT CHANGE THIS COMMENT  */
@@ -1823,19 +1793,14 @@ smtp_do_store_mail_ok(
     te_smtp_event trans_evt )
 {
 /*  START == STORE MAIL OK == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do store mail: initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "Store mail");
 
 	struct smtp_data *s = (struct smtp_data *)data;
 
 	if (smtp_data_store_email(s) == 0) {
-		slog_d("%s", "store mail: OK");
 		char *ok_msg = "Message accepted for delivery";
 		SMTP_DATA_FORM_ANSWER(s, 250, ok_msg);
 	} else {
-		slog_d("%s", "store mail: ERR");
 		char *err_msg = "Unable to store email";
 		if (s->answer.ret_msg_len != 0)
 			err_msg = s->answer.ret_msg;
@@ -1845,8 +1810,7 @@ smtp_do_store_mail_ok(
 
 	smtp_data_reset(s);
 
-	slog_d("TEST: do store mail: msg len %d next state %s",
-		s->answer.ret_msg_len, SMTP_STATE_NAME(maybe_next));
+	slog_d("Store mail: next state %s", SMTP_STATE_NAME(maybe_next));
 
     return maybe_next;
 /*  END   == STORE MAIL OK == DO NOT CHANGE THIS COMMENT  */
@@ -1912,21 +1876,17 @@ smtp_do_trans_begin_mail(
     te_smtp_event trans_evt )
 {
 /*  START == TRANS BEGIN MAIL == DO NOT CHANGE THIS COMMENT  */
-	slog_d("TEST: do trans mail: initial %s trans %s next %s",
-		SMTP_STATE_NAME(initial),
-		SMTP_EVT_NAME(trans_evt),
-		SMTP_STATE_NAME(maybe_next));
+	slog_i("%s", "MAIL got");
 
 	struct smtp_data *s = (struct smtp_data *)data;
 	s->answer.ret_msg_len = 0;
 
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_CMD, trans_evt, data);
 
-	slog_d("TEST: trans mail msg len %d", s->answer.ret_msg_len);
 	if (s->answer.ret_msg_len == 0)
 		SMTP_DATA_FORM_ANSWER(s, 250, s->name);
 
-	slog_d("TEST: next state %s", SMTP_STATE_NAME(next));
+	slog_d("MAIL: next state %s", SMTP_STATE_NAME(next));
 
     return next;
 /*  END   == TRANS BEGIN MAIL == DO NOT CHANGE THIS COMMENT  */

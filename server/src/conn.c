@@ -375,6 +375,13 @@ int run_server()
 	struct sockaddr_in addr;
 	uint16_t port = (uint16_t)conf.port;
 
+	int ret = start_logger(conf.log_file);
+	if (ret) {
+		slog_e("%s", "unable to start thread for logging");
+		return -1;
+	} else
+		slog_i("%s", "loging thread: started");
+
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
 	addr.sin_addr.s_addr = inet_addr(ip_addr);

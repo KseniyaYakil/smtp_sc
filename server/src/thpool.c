@@ -152,7 +152,7 @@ struct thpool_* thpool_init(int num_threads){
 	/* Thread init */
 	int n;
 	for (n=0; n<num_threads; n++){
-		thread_init(thpool_p, &thpool_p->threads[n], n);
+		thread_init(thpool_p, &thpool_p->threads[n], n + 1);
 		if (THPOOL_DEBUG)
 			printf("THPOOL_DEBUG: Created thread %d in pool \n", n);
 	}

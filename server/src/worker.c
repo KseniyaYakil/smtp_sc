@@ -142,7 +142,6 @@ static void worker_get_line(struct conn *conn, struct buf *msg)
 	buf_append(msg, line, line_len);
 
 	buf_move(read_buf, line_len);
-	slog_d("read buf : %.*s", read_buf->len, read_buf->data);
 }
 
 void worker_process(struct conn *conn)
@@ -154,10 +153,6 @@ void worker_process(struct conn *conn)
 	assert(s != NULL);
 
 	worker_get_line(conn, &client_msg);
-
-	slog_d("worker: data from client `%.*s'",
-		buf_get_len(&client_msg),
-		buf_get_data(&client_msg));
 
 	if (buf_get_len(&client_msg) == 0)
 		return;

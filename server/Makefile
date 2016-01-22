@@ -8,7 +8,7 @@ OBJ_DIR = obj
 LIB = -lconfig -lpthread -lpcre
 TARGET = smtp_server
 
-SRC = server.c conn.c thpool.c worker.c \
+SRC = server.c conn.c thpool.c worker.c log.c \
       buf.c smtp_proto.c smtp-fsm.c msg.c
 OBJECTS = $(patsubst %.o,$(OBJ_DIR)/%.o, $(SRC:.c=.o))
 

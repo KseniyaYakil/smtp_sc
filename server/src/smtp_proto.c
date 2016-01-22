@@ -176,7 +176,6 @@ int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len)
 
 int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len)
 {
-	slog_d("TEST: append  to email: %.*s", len, data);
 	email_append_body(&s_data->client.email, data, len);
 	return 0;
 }
@@ -201,7 +200,7 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 	} else
 		s_data->cur_cmd = SMTP_CMD_EMPTY;
 
-	slog_d("smtp_data: process msg from client: cmd %d", s_data->cur_cmd);
+	slog_d("smtp_data: cmd from client %d", s_data->cur_cmd);
 
 	assert(s_data->cur_cmd < SMTP_CMD_LAST);
 

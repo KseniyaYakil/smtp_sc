@@ -30,6 +30,7 @@ static void server_deinit(void)
 static int server_parse_config(void)
 {
 	struct stat mail_dir_st;
+	struct stat log_file_st;
 	long int log_lvl;
 	struct stat queue_dir_st;
 	const char *user_group;
@@ -61,11 +62,22 @@ static int server_parse_config(void)
 	}
 
 	if (config_setting_lookup_int(system, "log_level", &log_lvl) != CONFIG_TRUE ||
-	    log_lvl < 0 || log_lvl >= SERVER_LOG_LVL_LAST) {
+	    log_lvl < 0 || log_lvl >= LOG_LVL_LAST) {
 		slog_e("%s", "incorrect `log_level' parametr in config");
 		return -1;
 	}
 	conf.log_lvl = log_lvl;
+	cur_lvl = log_lvl;
+
+	if (config_lookup_string(&server_conf, "log_file", &conf.log_file) != CONFIG_TRUE) {
+		slog_e("%s", "incorrect `log_file'");
+		return -1;
+	}
+
+	if (stat(conf.log_file, &log_file_st) != 0) {
+		slog_e("incorrect log file: %s", strerror(errno));
+		return -1;
+	}
 
 	if (config_lookup_string(&server_conf, "mail_dir", &conf.mail_dir) != CONFIG_TRUE) {
 		slog_e("%s", "incorrect `mail_dir'");

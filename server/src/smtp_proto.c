@@ -10,7 +10,7 @@
 #define ELEMENT		"(?:"NAME")|(?:#"NUMBER")|(?:\\["DOTNUM"\\])"
 #define DOMAIN		"(?:"ELEMENT")(?:\\."ELEMENT")*"
 #define SP		" "
-#define CRLF		"\r\n"
+#define DATA_EOF_RE	"(.*)("DATA_EOF")"
 
 #define ASCII_CHAR	"[\\x00-\\x19\\x21-\\x7F]"
 #define CHAR		ASCII_CHAR
@@ -54,6 +54,9 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 		.cmd = "DATA",
 		.cmd_len = sizeof("DATA") - 1,
 		.evt = SMTP_EV_DATA,
+		.re = {
+			.str = "^("CRLF")"
+		}
 	},
 	[SMTP_CMD_RCPT] = {
 		.cmd = "RCPT",
@@ -80,14 +83,17 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 	},
 };
 
+pcre *data_eof_re;
+
 // TODO: destructor
 __attribute__((constructor))
 static void smtp_data_internal_init(void)
 {
+	const char *err;
+	int err_off;
+
 	for (uint32_t i = 0; i < SMTP_CMD_LAST; i++) {
 		struct smtp_reg *r = &smtp_cmd_arr[i].re;
-		const char *err;
-		int err_off;
 
 		if (r->str == NULL)
 			continue;
@@ -98,16 +104,18 @@ static void smtp_data_internal_init(void)
 			abort();
 		}
 	}
+
+	data_eof_re = pcre_compile(DATA_EOF_RE, PCRE_CASELESS, &err, &err_off, NULL);
+	if (data_eof_re == NULL) {
+		slog_e("%s", "smtp_data: incorrect regular expression for `data_oef'");
+		abort();
+	}
 };
 
 static enum smtp_cmd determine_cmd(struct buf *buf)
 {
 	const char *cmd = buf_get_data(buf);
-	uint32_t len = buf_get_len(buf);
 	enum smtp_cmd smtp_cmd = SMTP_CMD_EMPTY;
-
-	if (len < SMTP_CMD_MIN_LEN)
-		return smtp_cmd;
 
 	for (uint32_t i = 0; i < SMTP_CMD_LAST; i++) {
 		if (smtp_cmd_arr[i].cmd == NULL)
@@ -132,6 +140,8 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 		.name = name,
 	};
 
+	buf_init(&s_data->client.email, 0);
+
 	char info[SMTP_RET_MSG_LEN];
 	char *msg = "Simple Mail Transfer Service Ready";
 	int len = snprintf(info, sizeof(info), "%s %s", name, msg);
@@ -143,6 +153,13 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 
 void smtp_data_destroy(struct smtp_data *s_data)
 {
+	smtp_data_reset(s_data);
+
+	buf_free(&s_data->client.email);
+}
+
+void smtp_data_reset(struct smtp_data *s_data)
+{
 	if (s_data->client.domain != NULL)
 		free(s_data->client.domain);
 
@@ -153,11 +170,8 @@ void smtp_data_destroy(struct smtp_data *s_data)
 		free(s_data->client.rcpt[i]);
 	}
 	s_data->client.rcpt_cnt = 0;
-}
 
-void smtp_data_reset(struct smtp_data *s_data)
-{
-	smtp_data_destroy(s_data);
+	buf_reset(&s_data->client.email);
 
 	*s_data = (struct smtp_data) {
 		.state = SMTP_ST_INIT,
@@ -188,6 +202,19 @@ int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len)
 	return 0;
 }
 
+int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len)
+{
+	slog_d("TEST: append  to email: %.*s", len, data);
+	buf_append(&s_data->client.email, data, len);
+
+	return 0;
+}
+
+int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len)
+{
+	return buf_copy_tail(&s_data->client.email, str, len);
+}
+
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 {
 	te_smtp_event evt;
@@ -204,15 +231,7 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 	s_data->client.len = buf_get_len(msg) - info->cmd_len;
 
 	if (s_data->cur_cmd == SMTP_CMD_EMPTY) {
-		if (buf_get_len(msg) > sizeof("\r\n")) {
-			evt = SMTP_EV_DATA_RCV;
-		} else {
-			s_data->client.data = NULL;
-			s_data->client.len = 0;
-
-			s_data->answer.ret_msg_len = 0;
-			return 0;
-		}
+		evt = SMTP_EV_DATA_RCV;
 	} else
 		evt = smtp_cmd_arr[s_data->cur_cmd].evt;
 

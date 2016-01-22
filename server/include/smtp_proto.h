@@ -11,6 +11,9 @@
 #define SMTP_CMD_MIN_LEN	4
 #define SMTP_RCPT_CNT_MAX	32
 
+#define CRLF		"\r\n"
+#define DATA_EOF	CRLF"\\."CRLF
+
 enum smtp_cmd {
 	SMTP_CMD_EMPTY,
 	SMTP_CMD_HELO,
@@ -38,6 +41,8 @@ struct smtp_data {
 		char *from;
 		char *rcpt[SMTP_RCPT_CNT_MAX];
 		uint8_t rcpt_cnt;
+
+		struct buf email;
 	} client;
 
 	struct smtp_msg {
@@ -70,6 +75,7 @@ struct smtp_cmd_info {
 };
 
 extern struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST];
+extern pcre *data_eof_re;
 
 void smtp_data_init(struct smtp_data *s_data, const char *name);
 void smtp_data_destroy(struct smtp_data *s_data);
@@ -78,6 +84,8 @@ void smtp_data_reset(struct smtp_data *s_data);
 
 void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len);
 int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len);
+int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len);
+int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len);
 
 #endif
 

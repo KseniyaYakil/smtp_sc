@@ -30,6 +30,7 @@ void buf_swap(struct buf *b1, struct buf *b2);
 char *buf_get_data(struct buf *buf);
 uint32_t buf_get_len(struct buf *buf);
 int buf_copy(struct buf *buf, char **data_p, uint32_t *len);
+int buf_copy_tail(struct buf *buf, char *str, int len);
 void buf_move(struct buf *buf, int cnt);
 void buf_free(struct buf *buf);
 

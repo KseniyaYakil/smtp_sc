@@ -76,6 +76,9 @@ void buf_free(struct buf *buf)
 
 void buf_append(struct buf *buf, const char *data, uint32_t len)
 {
+	if (len == 0)
+		return;
+
 	buf_ensure(buf, len);
 	memcpy(buf->data + buf->len, data, len);
 	buf->len += len;
@@ -112,4 +115,16 @@ void buf_move(struct buf *buf, int cnt)
 	memmove(buf->data, buf->data + cnt, buf->len - cnt);
 }
 
+int buf_copy_tail(struct buf *buf, char *str, int len)
+{
+	if (buf->len == 0)
+		return 0;
+
+	int copy_len = buf->len > len ? len : buf->len;
+	char *start = buf->len > len ?
+		      buf->data + buf->len - len : buf->data;
+	memcpy(str, start, copy_len);
+
+	return copy_len;
+}
 

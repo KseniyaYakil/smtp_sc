@@ -7,12 +7,13 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <limits.h>
 
 #define SERVER_USAGE "Usage: <server> <config_file>"
 #define THREAD_CNT_DEFAULT 3
 
 static config_t server_conf;
-static char *hostname_default = "SMTP_SERVER";
+static char hostname_sys[NAME_MAX];
 struct server_conf conf;
 
 __attribute__((constructor))
@@ -57,9 +58,14 @@ static int server_parse_config(void)
 		conf.thread_cnt = THREAD_CNT_DEFAULT;
 
 	if (config_lookup_string(&server_conf, "hostname", &conf.hostname) != CONFIG_TRUE) {
-		slog_d("no `hostname' parametr in config. use default: %s'", hostname_default);
-		conf.hostname = hostname_default;
+		if (gethostname(hostname_sys, NAME_MAX) != 0) {
+			slog_e("gethostname() failed: %s", strerror(errno));
+			abort();
+		}
+
+		conf.hostname = hostname_sys;
 	}
+	slog_i("`hostname' %s'", conf.hostname);
 
 	if (config_setting_lookup_int(system, "log_level", &log_lvl) != CONFIG_TRUE ||
 	    log_lvl < 0 || log_lvl >= LOG_LVL_LAST) {

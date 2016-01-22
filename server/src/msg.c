@@ -2,17 +2,63 @@
 #include "server_types.h"
 
 #include <limits.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sys/types.h>
 #include <time.h>
+#include <pcre.h>
 #include <unistd.h>
 
+#define HDR_FROM	"From"
+#define HDR_TO		"To"
+#define HDR_MSG_ID	"Message-ID"
+#define HDR_DATE	"Date"
+#define HDR_SUBJ	"Subject"
+
 static char *email_hdr_name[EMAIL_MSG_HDR_LAST] = {
-	[EMAIL_MSG_HDR_FROM] =		"From",
-	[EMAIL_MSG_HDR_TO] =		"To",
-	[EMAIL_MSG_HDR_MSG_ID] =	"Message-ID",
-	[EMAIL_MSG_HDR_DATE] =		"Date",
+	[EMAIL_MSG_HDR_FROM] =		HDR_FROM,
+	[EMAIL_MSG_HDR_TO] =		HDR_TO,
+	[EMAIL_MSG_HDR_MSG_ID] =	HDR_MSG_ID,
+	[EMAIL_MSG_HDR_DATE] =		HDR_DATE,
+	[EMAIL_MSG_HDR_SUBJECT] =	HDR_SUBJ
 };
+
+static pcre *hdr_line;
+
+__attribute__((constructor))
+static void email_internal_init(void)
+{
+	const char *err;
+	int err_off;
+	char *str_hdr_line = "^([\\w\\d-]+):.*?\r\n";
+
+	hdr_line = pcre_compile(str_hdr_line, PCRE_NEWLINE_CRLF, &err, &err_off, NULL);
+	if (hdr_line == NULL) {
+		slog_e("%s", "incorrect regular expression for `hdr_line'");
+		abort();
+	}
+}
+
+static int  pcre_match_hdr_line(const char *data, int len,
+				const char **match_off, int *match_len)
+{
+	int ovec[24];
+	int ovecsize = sizeof(ovec);
+	int off;
+	int rc = pcre_exec(hdr_line, 0, data, len, 0, 0, ovec, ovecsize);
+
+	*match_len = 0;
+	*match_off = NULL;
+
+	if (rc < 0)
+		return 0;
+
+	off = ovec[2];
+	*match_len = ovec[3] - ovec[2];
+	*match_off = data + off;
+
+	return ovec[1];
+}
 
 static void email_hdr_init(struct email_hdr *h, enum email_hdr_type type)
 {
@@ -22,6 +68,17 @@ static void email_hdr_init(struct email_hdr *h, enum email_hdr_type type)
 	buf_append(&h->hdr, email_hdr_name[type], strlen(email_hdr_name[type]));
 	buf_append(&h->hdr, ": ", sizeof(": ") - 1);
 	h->el_cnt = 0;
+}
+
+static void email_hdr_set_empty(struct email_hdr *h)
+{
+	buf_reset(&h->hdr);
+	h->el_cnt = 0;
+}
+
+static bool email_hdr_is_empty(struct email_hdr *h)
+{
+	return buf_get_len(&h->hdr) == 0;
 }
 
 static void email_hdr_reset(struct email_hdr *h, enum email_hdr_type type)
@@ -120,13 +177,12 @@ static int email_hdr_date_create(struct email_hdr *h)
 	return 0;
 }
 
-static int email_hdr_msg_id_create(struct email_hdr *h, struct email_hdr *from)
+static int email_hdr_msg_id_create(struct email_hdr *h)
 {
 	char msg_id[EMAIL_HDR_MAX_LEN];
-	const char *domain = strchr(buf_get_data(&from->hdr), '@');
 
-	int cnt = snprintf(msg_id, sizeof(msg_id), "<%ld-%d-%ld%s",
-			   time(NULL) | rand(), rand(), time(NULL), domain);
+	int cnt = snprintf(msg_id, sizeof(msg_id), "<%ld-%d-%ld",
+			   time(NULL) | rand(), rand(), time(NULL));
 
 	if (cnt <= 0)
 		return -1;
@@ -153,6 +209,26 @@ static int email_write_to_file(struct email *e, const char *path)
 	}
 
 	for (uint32_t i = 0; i < EMAIL_MSG_HDR_LAST; i++) {
+		if (email_hdr_is_empty(&e->hdrs[i]) == true)
+			continue;
+
+		switch (i) {
+		case EMAIL_MSG_HDR_FROM:
+		case EMAIL_MSG_HDR_TO:
+		case EMAIL_MSG_HDR_SUBJECT:
+			break;
+		case EMAIL_MSG_HDR_DATE:
+			if (email_hdr_date_create(&e->hdrs[i]) != 0)
+				abort();
+			break;
+		case EMAIL_MSG_HDR_MSG_ID:
+			if (email_hdr_msg_id_create(&e->hdrs[i]) != 0)
+				abort();
+			break;
+		default:
+			abort();
+		}
+
 		fprintf(f, "%.*s\r\n",
 		       buf_get_len(&e->hdrs[i].hdr),
 		       buf_get_data(&e->hdrs[i].hdr));
@@ -165,14 +241,39 @@ static int email_write_to_file(struct email *e, const char *path)
 	return 0;
 }
 
+static void email_prepare_hdrs(struct email *e)
+{
+	const char *email = buf_get_data(&e->body);
+	int len = buf_get_len(&e->body);
+
+	while (len > 0) {
+		const char *match_hdr;
+		int match_hdr_len;
+
+		int off_end = pcre_match_hdr_line(email, len, &match_hdr, &match_hdr_len);
+
+		if (off_end == 0)
+			break;
+
+		email += off_end;
+		len -= off_end;
+
+		if (match_hdr_len == 0)
+			continue;
+
+		slog_d("parse email hdrs: found hdr %.*s", match_hdr_len, match_hdr);
+
+		for (uint32_t i = 0; i < EMAIL_MSG_HDR_LAST; i++) {
+			if (strncasecmp(match_hdr, email_hdr_name[i], match_hdr_len) == 0) {
+				email_hdr_set_empty(&e->hdrs[i]);
+				break;
+			}
+		}
+	};
+}
+
 int email_store(struct email *e, const char *path)
 {
-	if (email_hdr_date_create(&e->hdrs[EMAIL_MSG_HDR_DATE]) != 0)
-		return -1;
-
-	if (email_hdr_msg_id_create(&e->hdrs[EMAIL_MSG_HDR_MSG_ID],
-				    &e->hdrs[EMAIL_MSG_HDR_FROM]) != 0)
-		return -1;
-
+	email_prepare_hdrs(e);
 	return email_write_to_file(e, path);
 }

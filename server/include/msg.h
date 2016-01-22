@@ -15,6 +15,7 @@ enum email_hdr_type {
 	EMAIL_MSG_HDR_TO =	1,
 	EMAIL_MSG_HDR_MSG_ID =	2,
 	EMAIL_MSG_HDR_DATE =	3,
+	EMAIL_MSG_HDR_SUBJECT =	4,
 
 	EMAIL_MSG_HDR_LAST
 };

@@ -175,6 +175,11 @@ int conn_append_to_write_buf(struct conn *conn, const char *data, uint32_t len)
 	return 0;
 }
 
+struct buf *conn_read_buf_get(struct conn *conn)
+{
+	return &conn->read;
+}
+
 // XXX: caller MUST free *data_p mem
 int conn_read_buf_get_and_flush(struct conn *conn, struct buf **to_buf)
 {

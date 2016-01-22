@@ -113,6 +113,7 @@ void buf_move(struct buf *buf, int cnt)
 		return buf_reset(buf);
 
 	memmove(buf->data, buf->data + cnt, buf->len - cnt);
+	buf->len -= cnt;
 }
 
 int buf_copy_tail(struct buf *buf, char *str, int len)

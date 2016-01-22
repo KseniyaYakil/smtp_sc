@@ -86,7 +86,6 @@ struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 
 pcre *data_eof_re;
 
-// TODO: destructor
 __attribute__((constructor))
 static void smtp_data_internal_init(void)
 {

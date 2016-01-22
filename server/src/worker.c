@@ -3,10 +3,27 @@
 #include "server_types.h"
 #include "worker.h"
 
+#include <pcre.h>
 #include <assert.h>
 
 static struct session *session[MAX_CONN_CNT];
 static int64_t session_cnt;
+
+static pcre *eof_line;
+
+__attribute__((constructor))
+static void worker_internal_init(void)
+{
+	const char *err;
+	int err_off;
+	char *str_eof_line = "(.+?)"CRLF;
+
+	eof_line = pcre_compile(str_eof_line, PCRE_CASELESS, &err, &err_off, NULL);
+	if (eof_line == NULL) {
+		slog_e("%s", "incorrect regular expression for `eof_line'");
+		abort();
+	}
+}
 
 static struct session *session_create(void *conn)
 {
@@ -90,18 +107,59 @@ void worker_start(struct conn *conn)
 	}
 }
 
+static void pcre_match_line(const char *data, int len,
+			    const char **match_off, int *match_len)
+{
+	int ovec[24];
+	int ovecsize = sizeof(ovec);
+	int off;
+	int rc = pcre_exec(eof_line, 0, data, len, 0, 0, ovec, ovecsize);
+
+	*match_len = 0;
+	*match_off = NULL;
+
+	if (rc < 0)
+		return;
+
+	off = ovec[2];
+	*match_len = ovec[3] - ovec[2];
+	*match_off = data + off;
+}
+
+static void worker_get_line(struct conn *conn, struct buf *msg)
+{
+	struct buf *read_buf = conn_read_buf_get(conn);
+	const char *line;
+	int line_len;
+
+	pcre_match_line(buf_get_data(read_buf), buf_get_len(read_buf),
+			&line, &line_len);
+
+	buf_reset(msg);
+	if (line_len == 0)
+		return;
+
+	buf_append(msg, line, line_len + sizeof(CRLF) - 1);
+
+	buf_move(read_buf, line_len + sizeof(CRLF) - 1);
+}
+
 void worker_process(struct conn *conn)
 {
 	struct buf client_msg __attribute__((__cleanup__(buf_free))) = BUF_STATIC_INITIALIZER();
-	struct buf *c_msg = &client_msg;
 	struct session *s;
 
 	s = session_get_by_conn(conn);
 	assert(s != NULL);
 
-	conn_read_buf_get_and_flush(conn, &c_msg);
+	worker_get_line(conn, &client_msg);
+
 	slog_d("worker: data from client `%.*s'",
-		client_msg.len, client_msg.data);
+		buf_get_len(&client_msg),
+		buf_get_data(&client_msg));
+
+	if (buf_get_len(&client_msg) == 0)
+		return;
 
 	int ret = smtp_data_process(&s->s_data, &client_msg);
 

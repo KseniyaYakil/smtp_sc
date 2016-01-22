@@ -86,6 +86,7 @@ void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len);
 int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len);
 int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len);
 int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len);
+int smtp_data_store_email(struct smtp_data *s_data);
 
 #endif
 

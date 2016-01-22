@@ -369,7 +369,7 @@ smtp_trans_table[ SMTP_STATE_CT ][ SMTP_EVENT_CT ] = {
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_RCV */
     { SMTP_ST_INVALID, smtp_do_invalid },           /* EVT:  DATA_END */
-    { SMTP_ST_INIT, smtp_do_store_mail_ok },        /* EVT:  OK */
+    { SMTP_ST_TRANS_BEGIN, smtp_do_store_mail_ok },        /* EVT:  OK */
     { SMTP_ST_ST_ERR, smtp_do_store_mail_err }      /* EVT:  ERR */
   }
 };
@@ -1024,10 +1024,8 @@ smtp_do_data_wait_data_rcv(
 	te_smtp_state next = smtp_step(SMTP_ST_PARSE_DATA, trans_evt, data);
 
 	if (next == SMTP_ST_STORE_MAIL) {
-		SMTP_DATA_FORM_ANSWER(s, 250, "OK");
-
 		slog_d("%s", "TEST: need store email implementation");
-		//maybe_next = smtp_step(SMTP_ST_STORE_MAIL, );
+		next = smtp_step(SMTP_ST_STORE_MAIL, SMTP_EV_OK, data);
 	}
 
 	slog_d("TEST: wait data_recv  msg len %d", s->answer.ret_msg_len);
@@ -1470,8 +1468,6 @@ smtp_do_parse_data_data_rcv(
 		off = ovec[4];
 		len = ovec[5] - ovec[4];
 
-		// SMTP_EV_DATA_END
-		// TODO: assert ?
 		if (len > 0) {
 			slog_d("%s","TEST: data_wait: recv end of email");
 			maybe_next = SMTP_ST_STORE_MAIL;
@@ -1561,7 +1557,10 @@ smtp_do_process_rset_ok(
 	smtp_data_reset(s);
 	SMTP_DATA_FORM_ANSWER(s, 250, msg);
 
-    return SMTP_ST_INIT;
+	maybe_next = s->state != SMTP_ST_INIT ?
+		     SMTP_ST_TRANS_BEGIN : SMTP_ST_INIT;
+
+    return maybe_next;
 /*  END   == PROCESS RSET OK == DO NOT CHANGE THIS COMMENT  */
 }
 
@@ -1819,6 +1818,31 @@ smtp_do_store_mail_ok(
     te_smtp_event trans_evt )
 {
 /*  START == STORE MAIL OK == DO NOT CHANGE THIS COMMENT  */
+	slog_d("TEST: do store mail: initial %s trans %s next %s",
+		SMTP_STATE_NAME(initial),
+		SMTP_EVT_NAME(trans_evt),
+		SMTP_STATE_NAME(maybe_next));
+
+	struct smtp_data *s = (struct smtp_data *)data;
+
+	if (smtp_data_store_email(s) == 0) {
+		slog_d("%s", "store mail: OK");
+		char *ok_msg = "Message accepted for delivery";
+		SMTP_DATA_FORM_ANSWER(s, 250, ok_msg);
+	} else {
+		slog_d("%s", "store mail: ERR");
+		char *err_msg = "Unable to store email";
+		if (s->answer.ret_msg_len != 0)
+			err_msg = s->answer.ret_msg;
+
+		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+	}
+
+	smtp_data_reset(s);
+
+	slog_d("TEST: do store mail: msg len %d next state %s",
+		s->answer.ret_msg_len, SMTP_STATE_NAME(maybe_next));
+
     return maybe_next;
 /*  END   == STORE MAIL OK == DO NOT CHANGE THIS COMMENT  */
 }

@@ -155,16 +155,18 @@ void smtp_data_destroy(struct smtp_data *s_data)
 {
 	smtp_data_reset(s_data);
 
+	if (s_data->client.domain != NULL)
+		free(s_data->client.domain);
+
 	buf_free(&s_data->client.email);
 }
 
 void smtp_data_reset(struct smtp_data *s_data)
 {
-	if (s_data->client.domain != NULL)
-		free(s_data->client.domain);
-
-	if (s_data->client.from != NULL)
+	if (s_data->client.from != NULL) {
 		free(s_data->client.from);
+		s_data->client.from = NULL;
+	}
 
 	for (uint8_t i = 0; i < s_data->client.rcpt_cnt; i++) {
 		free(s_data->client.rcpt[i]);
@@ -172,12 +174,6 @@ void smtp_data_reset(struct smtp_data *s_data)
 	s_data->client.rcpt_cnt = 0;
 
 	buf_reset(&s_data->client.email);
-
-	*s_data = (struct smtp_data) {
-		.state = SMTP_ST_INIT,
-		.name = s_data->name,
-		.cur_cmd = SMTP_CMD_EMPTY
-	};
 }
 
 void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len)
@@ -210,6 +206,13 @@ int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len)
 	return 0;
 }
 
+int smtp_data_store_email(struct smtp_data *s_data)
+{
+	(void)s_data;
+	slog_d("%s", "store email");
+	return 0;
+}
+
 int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len)
 {
 	return buf_copy_tail(&s_data->client.email, str, len);
@@ -220,7 +223,10 @@ int smtp_data_process(struct smtp_data *s_data, struct buf *msg)
 	te_smtp_event evt;
 	struct smtp_cmd_info *info;
 
-	s_data->cur_cmd = determine_cmd(msg);
+	if (s_data->state != SMTP_ST_DATA_WAIT) {
+		s_data->cur_cmd = determine_cmd(msg);
+	} else
+		s_data->cur_cmd = SMTP_CMD_EMPTY;
 
 	slog_d("smtp_data: process msg from client: cmd %d", s_data->cur_cmd);
 

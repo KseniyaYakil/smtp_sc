@@ -15,7 +15,6 @@
 #define CRLF		"\r\n"
 #define DATA_EOF	CRLF"\\."CRLF
 
-// TODO: limit body buf according to max size
 enum smtp_cmd {
 	SMTP_CMD_EMPTY,
 	SMTP_CMD_HELO,

@@ -93,7 +93,6 @@ void worker_start(struct conn *conn)
 	if (session_cnt > 0)
 		worker_close(conn);
 
-	// TODO: need mutex
 	for (uint32_t i = 0; i < MAX_CONN_CNT; i++) {
 		if (session[i] != NULL)
 			continue;
@@ -185,7 +184,6 @@ void worker_close(struct conn *conn)
 		if (session[i] == NULL)
 			continue;
 
-		// TODO: need mutex
 		if ((session[i])->conn == conn) {
 			slog_d("worker: destroy conn %d", (session[i])->id);
 			session_destroy(session[i]);

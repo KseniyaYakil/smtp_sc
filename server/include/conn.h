@@ -22,7 +22,6 @@ struct conn {
 	struct buf read; // read data from client
 	struct buf write; // write data to client
 
-	// TODO: change to timeout
 	int attempts;
 };
 

@@ -24,7 +24,6 @@
 static int timeout_msec = -1;
 static char ip_def[32] = "127.0.0.1";
 static threadpool thpool;
-// TODO: make extendable
 static struct conn *conns[MAX_CONN_CNT];
 static struct pollfd fds[MAX_CLIENTS];
 

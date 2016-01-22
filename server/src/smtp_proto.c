@@ -25,7 +25,6 @@
 #define REVERSE_PATH	PATH
 #define FORWARD_PATH	PATH
 
-// TODO: local part not fully implemented
 struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST] = {
 	[SMTP_CMD_HELO] = {
 		.cmd = "HELO",

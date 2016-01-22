@@ -998,7 +998,6 @@ smtp_do_data_wait_data_end(
     te_smtp_event trans_evt )
 {
 /*  START == DATA WAIT DATA END == DO NOT CHANGE THIS COMMENT  */
-	// TODO 250 OK
     return maybe_next;
 /*  END   == DATA WAIT DATA END == DO NOT CHANGE THIS COMMENT  */
 }

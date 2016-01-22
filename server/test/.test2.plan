@@ -1,0 +1,22 @@
+[
+{"" : "220"},
+{"HELO tester\r\n" : "250"},
+{"MAIL FROM:<@DM.ARPA:AAA@MP.ARPA>\r\n" : "250"},
+{"RCPT TO:<@h1.com,@h23.org:friend@test.tmp.org>\r\n" : "250"},
+{"RCPT TO:<qqq@mail.ru>\r\n" : "250"},
+{"RCPT TO:<kseniya@yandex.ru>\r\n" : "250"},
+{"DATA\r\n" : "354"},
+{"Body of email str 1\r\n" : ""},
+{"Body of email str 2\n\r\n" : ""},
+{"Body of email str 3\r\n" : ""},
+{"\r\n.\r\n" : "250"},
+{"RSET" : "250"},
+{"MAIL FROM:<@DM.ARPA:AAA@MP.ARPA>\r\n" : "250"},
+{"RCPT TO:<qqq@mail.ru>\r\n" : "250"},
+{"DATA\r\n" : "354"},
+{"\r" : ""},
+{"\n" : ""},
+{"." : ""},
+{"\r\n" : "250"},
+{"QUIT\r\n" : "221"}
+]

@@ -2,6 +2,7 @@
 #define _SMTP_PROTO_H_
 
 #include "buf.h"
+#include "msg.h"
 #include "server_types.h"
 #include "smtp-fsm.h"
 
@@ -9,7 +10,6 @@
 
 #define SMTP_RET_MSG_LEN	1024
 #define SMTP_CMD_MIN_LEN	4
-#define SMTP_RCPT_CNT_MAX	32
 
 #define CRLF		"\r\n"
 #define DATA_EOF	CRLF"\\."CRLF
@@ -32,17 +32,15 @@ enum smtp_cmd {
 struct smtp_data {
 	te_smtp_state state;
 	const char *name;
+	const char *mail_dir;
 	enum smtp_cmd cur_cmd;
 
 	struct smtp_client {
 		const char *data; // from client
 		int len;
-		char *domain;
-		char *from;
-		char *rcpt[SMTP_RCPT_CNT_MAX];
-		uint8_t rcpt_cnt;
 
-		struct buf email;
+		char *domain;
+		struct email email;
 	} client;
 
 	struct smtp_msg {
@@ -77,7 +75,7 @@ struct smtp_cmd_info {
 extern struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST];
 extern pcre *data_eof_re;
 
-void smtp_data_init(struct smtp_data *s_data, const char *name);
+void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir);
 void smtp_data_destroy(struct smtp_data *s_data);
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg);
 void smtp_data_reset(struct smtp_data *s_data);

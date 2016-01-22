@@ -1,3 +1,4 @@
+#include "msg.h"
 #include "smtp_proto.h"
 
 #include <assert.h>
@@ -133,14 +134,15 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 	return smtp_cmd;
 }
 
-void smtp_data_init(struct smtp_data *s_data, const char *name)
+void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir)
 {
 	*s_data = (struct smtp_data) {
 		.state = SMTP_ST_INIT,
 		.name = name,
+		.mail_dir = mail_dir
 	};
 
-	buf_init(&s_data->client.email, 0);
+	email_init(&s_data->client.email, 0);
 
 	char info[SMTP_RET_MSG_LEN];
 	char *msg = "Simple Mail Transfer Service Ready";
@@ -151,6 +153,11 @@ void smtp_data_init(struct smtp_data *s_data, const char *name)
 	SMTP_DATA_FORM_ANSWER(s_data, 220, info);
 }
 
+void smtp_data_reset(struct smtp_data *s_data)
+{
+	email_reset(&s_data->client.email);
+}
+
 void smtp_data_destroy(struct smtp_data *s_data)
 {
 	smtp_data_reset(s_data);
@@ -158,64 +165,34 @@ void smtp_data_destroy(struct smtp_data *s_data)
 	if (s_data->client.domain != NULL)
 		free(s_data->client.domain);
 
-	buf_free(&s_data->client.email);
-}
-
-void smtp_data_reset(struct smtp_data *s_data)
-{
-	if (s_data->client.from != NULL) {
-		free(s_data->client.from);
-		s_data->client.from = NULL;
-	}
-
-	for (uint8_t i = 0; i < s_data->client.rcpt_cnt; i++) {
-		free(s_data->client.rcpt[i]);
-	}
-	s_data->client.rcpt_cnt = 0;
-
-	buf_reset(&s_data->client.email);
+	email_destroy(&s_data->client.email);
 }
 
 void smtp_data_store_from(struct smtp_data *s_data, const char *from, int len)
 {
-	if (s_data->client.from != NULL)
-		free(s_data->client.from);
-
-	s_data->client.from = strndup(from, len);
+	email_add_from(&s_data->client.email, from, len);
 }
 
-// TODO: separate client struct and functions
 int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len)
 {
-	uint8_t cur_cnt = s_data->client.rcpt_cnt;
-
-	if (cur_cnt == SMTP_RCPT_CNT_MAX)
-		return -1;
-
-	s_data->client.rcpt[cur_cnt] = strndup(rcpt, len);
-	s_data->client.rcpt_cnt++;
-
-	return 0;
+	return email_add_rcpt(&s_data->client.email, rcpt, len);
 }
 
 int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len)
 {
 	slog_d("TEST: append  to email: %.*s", len, data);
-	buf_append(&s_data->client.email, data, len);
-
+	email_append_body(&s_data->client.email, data, len);
 	return 0;
 }
 
 int smtp_data_store_email(struct smtp_data *s_data)
 {
-	(void)s_data;
-	slog_d("%s", "store email");
-	return 0;
+	return email_store(&s_data->client.email, s_data->mail_dir);
 }
 
 int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len)
 {
-	return buf_copy_tail(&s_data->client.email, str, len);
+	return buf_copy_tail(&s_data->client.email.body, str, len);
 }
 
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg)

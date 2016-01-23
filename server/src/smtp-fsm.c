@@ -62,6 +62,9 @@
  *  return the next state.  Normally, that should be the value of
  *  the "maybe_next" argument.
  */
+
+static char *get_host_of_client_ip(struct smtp_data *s);
+
 typedef te_smtp_state (smtp_callback_t)(
     void *data,
     te_smtp_state initial,
@@ -1248,6 +1251,29 @@ smtp_do_parse_cmd_ehlo(
     te_smtp_event trans_evt )
 {
 /*  START == PARSE CMD EHLO == DO NOT CHANGE THIS COMMENT  */
+	slog_d("%s", "parse cmd ehlo");
+
+	struct smtp_data *s = (struct smtp_data*)data;
+	const char *domain = s->client.data;
+	int len = s->client.len;
+
+	te_smtp_event evt = parse_cmd_internal(s, &domain, &len);
+
+	if (evt == SMTP_EV_ERR) {
+		char *err_msg = "incorrect domain argument";
+		SMTP_DATA_FORM_ANSWER(s, 501, err_msg);
+
+		return s->state;
+	}
+
+	s->client.domain = strndup(domain, len);
+	if (s->client.domain == NULL)
+		abort();
+
+	char *hostname = get_host_of_client_ip(s);
+	s->client.real_domain = hostname;
+
+	slog_d("parse cmd ehlo:  next state %s", SMTP_STATE_NAME(maybe_next));
     return maybe_next;
 /*  END   == PARSE CMD EHLO == DO NOT CHANGE THIS COMMENT  */
 }
@@ -1291,12 +1317,16 @@ smtp_do_parse_cmd_helo(
 	if (s->client.domain == NULL)
 		abort();
 
+	char *hostname = get_host_of_client_ip(s);
+	s->client.real_domain = hostname;
+
+
 	slog_d("parse cmd helo:  next state %s", SMTP_STATE_NAME(maybe_next));
     return maybe_next;
 /*  END   == PARSE CMD HELO == DO NOT CHANGE THIS COMMENT  */
 }
 
-static const char *get_host_of_client_ip(struct smtp_data *s)
+static char *get_host_of_client_ip(struct smtp_data *s)
 {
         struct sockaddr structSockAddr;
         memset(&structSockAddr, 0, sizeof(structSockAddr));
@@ -1342,12 +1372,12 @@ smtp_do_parse_cmd_mail(
 		return s->state;
 	}
 
-	const char *hostname = get_host_of_client_ip(s);
+	const char *hostname = s->client.real_domain;
 	char *domain = strrchr(reverse_path, '@');
 	assert(domain != NULL);
 	domain += 1;
 
-	printf("domain %s host %s\n", domain, hostname);
+	//printf("domain %s host %s\n", domain, hostname);
 
 	if (hostname == NULL) {
 		char *err_msg = "unable to reverse lookup for your dns";

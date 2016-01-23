@@ -37,6 +37,8 @@ void email_reset(struct email *e);
 void email_add_from(struct email *e, const char *from, int len);
 int email_add_rcpt(struct email *e, const char *rcpt, int len);
 void email_append_body(struct email *e, const char *data, int len);
-int email_store(struct email *e, const char *path);
+int email_store(struct email *e, const char *domain,
+		const char *int_path, const char *ext_path);
+
 
 #endif // _SMTP_EMAIL_MSG_H_

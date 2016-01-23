@@ -36,6 +36,7 @@ struct smtp_data {
 	te_smtp_state state;
 	const char *name;
 	const char *mail_dir;
+	const char *queue_dir;
 	enum smtp_cmd cur_cmd;
 
 	struct smtp_client {
@@ -43,6 +44,7 @@ struct smtp_data {
 		int len;
 
 		char *domain;
+		char *real_domain;
 		struct email email;
 		const char *ip;
 	} client;
@@ -79,7 +81,8 @@ struct smtp_cmd_info {
 extern struct smtp_cmd_info smtp_cmd_arr[SMTP_CMD_LAST];
 extern pcre *data_eof_re;
 
-void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir, const char *ip);
+void smtp_data_init(struct smtp_data *s_data, const char *name,
+		    const char *mail_dir, const char *queue_dir, const char *ip);
 void smtp_data_destroy(struct smtp_data *s_data);
 int smtp_data_process(struct smtp_data *s_data, struct buf *msg);
 void smtp_data_reset(struct smtp_data *s_data);
@@ -89,6 +92,7 @@ int smtp_data_add_rcpt(struct smtp_data *s_data, const char *rcpt, int len);
 int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len);
 int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len);
 int smtp_data_store_email(struct smtp_data *s_data);
+void smtp_data_set_real_domain(struct smtp_data *s, char *real_domain);
 
 #endif
 

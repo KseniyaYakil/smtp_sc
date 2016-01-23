@@ -1,6 +1,7 @@
 #include "msg.h"
 #include "server_types.h"
 
+#include <ctype.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <string.h>
@@ -78,7 +79,7 @@ static void email_hdr_set_empty(struct email_hdr *h)
 
 static bool email_hdr_is_empty(struct email_hdr *h)
 {
-	return buf_get_len(&h->hdr) == 0;
+	return buf_get_len(&h->hdr) == 0 || h->el_cnt == 0;
 }
 
 static void email_hdr_reset(struct email_hdr *h, enum email_hdr_type type)
@@ -266,14 +267,55 @@ static void email_prepare_hdrs(struct email *e)
 		for (uint32_t i = 0; i < EMAIL_MSG_HDR_LAST; i++) {
 			if (strncasecmp(match_hdr, email_hdr_name[i], match_hdr_len) == 0) {
 				email_hdr_set_empty(&e->hdrs[i]);
+				if (i == EMAIL_MSG_HDR_TO) {
+					buf_append(&(e->hdrs[i]).hdr, email - off_end, off_end);
+				}
 				break;
 			}
 		}
 	};
 }
 
-int email_store(struct email *e, const char *path)
+static bool email_hdr_rcpt_is_internal(struct email_hdr *hdr, const char *domain)
 {
+	char *c;
+	char *rcpt = buf_get_data(&hdr->hdr);
+	int len = buf_get_len(&hdr->hdr);
+	bool internal = true;
+
+	c = rcpt;
+	slog_d("rcpt %.*s domain %s", len, rcpt, domain);
+	while ((c = strchr(c, '@')) != NULL && c < (rcpt + len)) {
+		char *start = ++c;
+
+		while (*c != '@' && (isalpha(*c) || *c == '.')) {
+			if (c == (rcpt + len - 1))
+				break;
+			c++;
+		}
+
+		int cnt = c - start;
+		if (cnt == 0)
+			break;
+
+		slog_d("TO: found domain: %.*s", cnt, c);
+
+		if (strncasecmp(start, domain, cnt) != 0) {
+			internal = false;
+			break;
+		}
+	}
+	return internal;
+}
+
+int email_store(struct email *e, const char *domain,
+		const char *int_path, const char *ext_path)
+{
+	const char *path;
 	email_prepare_hdrs(e);
+
+	bool internal = email_hdr_rcpt_is_internal(&e->hdrs[EMAIL_MSG_HDR_TO], domain);
+	path = internal == true ? int_path : ext_path;
+
 	return email_write_to_file(e, path);
 }

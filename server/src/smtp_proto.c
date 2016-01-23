@@ -129,12 +129,14 @@ static enum smtp_cmd determine_cmd(struct buf *buf)
 	return smtp_cmd;
 }
 
-void smtp_data_init(struct smtp_data *s_data, const char *name, const char *mail_dir, const char *ip)
+void smtp_data_init(struct smtp_data *s_data, const char *name,
+		    const char *mail_dir, const char *queue_dir, const char *ip)
 {
 	*s_data = (struct smtp_data) {
 		.state = SMTP_ST_INIT,
 		.name = name,
 		.mail_dir = mail_dir,
+		.queue_dir = queue_dir
 	};
 
 	email_init(&s_data->client.email, 0);
@@ -162,6 +164,9 @@ void smtp_data_destroy(struct smtp_data *s_data)
 	if (s_data->client.domain != NULL)
 		free(s_data->client.domain);
 
+	if (s_data->client.real_domain != NULL)
+		free(s_data->client.real_domain);
+
 	email_destroy(&s_data->client.email);
 }
 
@@ -183,7 +188,8 @@ int smtp_data_append_email(struct smtp_data *s_data, const char *data, int len)
 
 int smtp_data_store_email(struct smtp_data *s_data)
 {
-	return email_store(&s_data->client.email, s_data->mail_dir);
+	return email_store(&s_data->client.email, s_data->client.real_domain,
+			   s_data->mail_dir, s_data->queue_dir);
 }
 
 int smtp_data_email_copy_tail(struct smtp_data *s_data, char *str, int len)

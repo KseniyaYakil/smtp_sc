@@ -1,13 +1,3 @@
-/* ********************************
- * Author:       Johan Hanssen Seferidis
- * License:	     MIT
- * Description:  Library providing a threading pool where you can add
- *               work. For usage, check the thpool.h file or README.md
- *
- *//** @file thpool.h *//*
- * 
- ********************************/
-
 
 #include <unistd.h>
 #include <signal.h>
